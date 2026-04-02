@@ -1,6 +1,6 @@
 const logger = require("../utils/logger");
 
-module.exports = (err, req, res, next) => {
+const errorHandler = (err, req, res, next) => {
   logger.error(err.stack || err.message);
 
   if (err.statusCode) {
@@ -17,3 +17,5 @@ module.exports = (err, req, res, next) => {
     message: "Something went wrong"
   });
 };
+
+module.exports = errorHandler;

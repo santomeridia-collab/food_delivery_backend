@@ -1,12 +1,4 @@
 generator client {
-  provider = "prisma-client"
-  output   = "../generated/prisma"
-}
-
-datasource db {
-  provider = "postgresql"
-}
-generator client {
   provider = "prisma-client-js"
 }
 
@@ -16,17 +8,17 @@ datasource db {
 }
 
 model User {
-  id           String    @id @default(uuid())
-  name         String?
-  phone        String    @unique
-  email        String?   @unique
-  password     String?
-  role         String
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  id            String         @id @default(uuid())
+  name          String?
+  phone         String         @unique
+  email         String?        @unique
+  password      String?
+  role          String
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
 
-  addresses    Address[]
-  orders       Order[]
+  addresses     Address[]
+  orders        Order[]
   notifications Notification[]
 }
 
@@ -50,7 +42,7 @@ model Address {
   longitude  Float?
   createdAt  DateTime @default(now())
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Restaurant {
@@ -66,76 +58,76 @@ model Restaurant {
 }
 
 model MenuItem {
-  id            String   @id @default(uuid())
+  id            String      @id @default(uuid())
   restaurantId  String
   name          String
   description   String?
   price         Float
-  isAvailable   Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  isAvailable   Boolean     @default(true)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
 
-  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  orderItems  OrderItem[]
+  restaurant    Restaurant  @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  orderItems    OrderItem[]
 }
 
 model Order {
-  id            String   @id @default(uuid())
+  id            String             @id @default(uuid())
   userId        String
   restaurantId  String
   status        String
   totalAmount   Float
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
 
-  user        User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  restaurant  Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  items       OrderItem[]
-  payment     Payment?
-  tracking    DeliveryTracking?
+  user          User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  restaurant    Restaurant         @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  items         OrderItem[]
+  payment       Payment?
+  tracking      DeliveryTracking?
 }
 
 model OrderItem {
-  id          String   @id @default(uuid())
+  id          String    @id @default(uuid())
   orderId     String
   menuItemId  String
   quantity    Int
   price       Float
 
-  order     Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  menuItem  MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  order       Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menuItem    MenuItem  @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
 }
 
 model Payment {
-  id         String   @id @default(uuid())
-  orderId     String   @unique
-  amount      Float
-  status      String
-  method      String?
-  createdAt   DateTime @default(now())
+  id         String    @id @default(uuid())
+  orderId    String    @unique
+  amount     Float
+  status     String
+  method     String?
+  createdAt  DateTime  @default(now())
 
-  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order      Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
 }
 
 model DeliveryTracking {
-  id          String   @id @default(uuid())
-  orderId      String   @unique
-  riderName    String?
-  riderPhone   String?
-  currentLat   Float?
-  currentLng   Float?
-  updatedAt    DateTime @updatedAt
+  id          String    @id @default(uuid())
+  orderId     String    @unique
+  riderName   String?
+  riderPhone  String?
+  currentLat  Float?
+  currentLng  Float?
+  updatedAt   DateTime  @updatedAt
 
-  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order       Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
 }
 
 model Notification {
-  id         String   @id @default(uuid())
-  userId      String
-  title       String
-  message     String
-  isRead      Boolean  @default(false)
-  createdAt   DateTime @default(now())
+  id         String    @id @default(uuid())
+  userId     String
+  title      String
+  message    String
+  isRead     Boolean   @default(false)
+  createdAt  DateTime  @default(now())
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

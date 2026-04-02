@@ -8,6 +8,9 @@ const env = require("./src/config/env");
 const rateLimiter = require("./src/common/middleware/rateLimiter");
 const errorHandler = require("./src/common/middleware/errorHandler");
 
+const authRoutes = require("./src/modules/auth/auth.routes");
+const userRoutes = require("./src/modules/user/user.routes");
+
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
@@ -24,9 +27,8 @@ app.get("/", (req, res) => {
   res.json({ success: true, message: "API is running" });
 });
 
-// Example routers
-app.use("/api/auth", require("./src/modules/auth/auth.routes"));
-app.use("/api/users", require("./src/modules/user/user.routes"));
+app.use("/api/auth", authRoutes);
+app.use("/api/users", userRoutes);
 
 io.on("connection", (socket) => {
   console.log("Socket connected:", socket.id);
