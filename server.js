@@ -1,4 +1,6 @@
 require("dotenv").config();
+const paymentRoutes = require("./src/modules/payment/routes");
+const notificationRoutes = require("./src/modules/notification/routes");
 const express = require("express");
 const http = require("http");
 const morgan = require("morgan");
@@ -29,6 +31,8 @@ app.get("/", (req, res) => {
 
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
+app.use("/api/payments", paymentRoutes);
+app.use("/api/notifications", notificationRoutes);
 
 io.on("connection", (socket) => {
   console.log("Socket connected:", socket.id);

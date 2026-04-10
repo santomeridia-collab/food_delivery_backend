@@ -104,6 +104,7 @@ model Payment {
   amount     Float
   status     String
   method     String?
+  reference  String    @unique
   createdAt  DateTime  @default(now())
 
   order      Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
@@ -126,6 +127,7 @@ model Notification {
   userId     String
   title      String
   message    String
+  type       String
   isRead     Boolean   @default(false)
   createdAt  DateTime  @default(now())
 
