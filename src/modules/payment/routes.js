@@ -1,8 +1,39 @@
-'use strict';
+const express = require("express");
+const router = express.Router();
 
-const { Router } = require('express');
+const authenticate = require("../../common/middleware/authenticate");
+const authorize = require("../../common/middleware/authorize");
+const validate = require("../../common/middleware/validate");
 
-const router = Router();
+const paymentController = require("./controller");
+const {
+  createPaymentSchema,
+  verifyPaymentSchema,
+  refundSchema
+} = require("./validation");
 
-// Stub — full implementation in task 8.4
+router.post(
+  "/",
+  authenticate,
+  authorize("CUSTOMER"),
+  validate(createPaymentSchema),
+  paymentController.createPayment
+);
+
+router.post(
+  "/verify",
+  authenticate,
+  authorize("CUSTOMER"),
+  validate(verifyPaymentSchema),
+  paymentController.verifyPayment
+);
+
+router.post(
+  "/:id/refund",
+  authenticate,
+  authorize("CUSTOMER"),
+  validate(refundSchema),
+  paymentController.refund
+);
+
 module.exports = router;
