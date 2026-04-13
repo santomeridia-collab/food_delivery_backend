@@ -1,6 +1,7 @@
 require("dotenv").config();
 const paymentRoutes = require("./src/modules/payment/routes");
 const notificationRoutes = require("./src/modules/notification/routes");
+const deliveryRoutes = require("./src/modules/delivery/routes");
 const express = require("express");
 const http = require("http");
 const morgan = require("morgan");
@@ -24,6 +25,7 @@ const io = new Server(server, {
 app.use(express.json());
 app.use(morgan("dev"));
 app.use(rateLimiter);
+app.use("/api/delivery", deliveryRoutes)
 
 app.get("/", (req, res) => {
   res.json({ success: true, message: "API is running" });
