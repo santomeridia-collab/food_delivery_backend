@@ -1,45 +1,44 @@
-const deliveryService = require("./service");
-const { success } = require("../../common/utils/response");
+'use strict';
 
-const assignDelivery = async (req, res, next) => {
+const service = require('./service');
+const { success } = require('../../common/utils/response');
+
+/** POST /delivery/:orderId/accept */
+async function acceptOrder(req, res, next) {
   try {
-    const result = await deliveryService.assignDelivery(req.body);
-    return success(res, "Delivery assigned successfully", result, 201);
+    const order = await service.acceptOrder(req.params.orderId, req.user.id);
+    return success(res, 'Order accepted successfully', order);
   } catch (err) {
     next(err);
   }
-};
+}
 
-const updateLocation = async (req, res, next) => {
+/** POST /delivery/:orderId/location */
+async function updateLocation(req, res, next) {
   try {
-    const result = await deliveryService.updateLocation(req.body);
-    return success(res, "Delivery location updated successfully", result);
+    const io = req.app.get('io');
+    const tracking = await service.updateLocation(
+      req.params.orderId,
+      req.user.id,
+      req.body.lat,
+      req.body.lng,
+      io
+    );
+    return success(res, 'Location updated successfully', tracking);
   } catch (err) {
     next(err);
   }
-};
+}
 
-const getDeliveryByOrderId = async (req, res, next) => {
+/** POST /delivery/:orderId/complete */
+async function completeOrder(req, res, next) {
   try {
-    const result = await deliveryService.getDeliveryByOrderId(req.params.orderId);
-    return success(res, "Delivery tracking fetched successfully", result);
+    const io = req.app.get('io');
+    const order = await service.completeOrder(req.params.orderId, req.user.id, io);
+    return success(res, 'Order completed successfully', order);
   } catch (err) {
     next(err);
   }
-};
+}
 
-const updateDeliveryStatus = async (req, res, next) => {
-  try {
-    const result = await deliveryService.updateDeliveryStatus(req.body);
-    return success(res, "Delivery status updated successfully", result);
-  } catch (err) {
-    next(err);
-  }
-};
-
-module.exports = {
-  assignDelivery,
-  updateLocation,
-  getDeliveryByOrderId,
-  updateDeliveryStatus
-};
+module.exports = { acceptOrder, updateLocation, completeOrder };

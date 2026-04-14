@@ -3,45 +3,16 @@
 const { Router } = require('express');
 const router = Router();
 
-const authenticate = require("../../common/middleware/authenticate");
-const authorize = require("../../common/middleware/authorize");
-const validate = require("../../common/middleware/validate");
+const authenticate = require('../../common/middleware/authenticate');
+const authorize = require('../../common/middleware/authorize');
+const validate = require('../../common/middleware/validate');
 
-const deliveryController = require("./controller");
-const {
-  assignDeliverySchema,
-  updateLocationSchema,
-  updateDeliveryStatusSchema
-} = require("./validation");
+const controller = require('./controller');
+const { acceptOrderSchema, updateLocationSchema, completeOrderSchema } = require('./validation');
 
-router.post(
-  "/assign",
-  authenticate,
-  authorize("ADMIN", "RESTAURANT_OWNER"),
-  validate(assignDeliverySchema),
-  deliveryController.assignDelivery
-);
-
-router.patch(
-  "/location",
-  authenticate,
-  authorize("DELIVERY_PARTNER", "ADMIN"),
-  validate(updateLocationSchema),
-  deliveryController.updateLocation
-);
-
-router.get(
-  "/:orderId",
-  authenticate,
-  deliveryController.getDeliveryByOrderId
-);
-
-router.patch(
-  "/status",
-  authenticate,
-  authorize("DELIVERY_PARTNER", "ADMIN"),
-  validate(updateDeliveryStatusSchema),
-  deliveryController.updateDeliveryStatus
-);
+// All delivery routes require authentication and the 'delivery' role
+router.post('/:orderId/accept',   authenticate, authorize('delivery'), validate(acceptOrderSchema),   controller.acceptOrder);
+router.post('/:orderId/location', authenticate, authorize('delivery'), validate(updateLocationSchema), controller.updateLocation);
+router.post('/:orderId/complete', authenticate, authorize('delivery'), validate(completeOrderSchema),  controller.completeOrder);
 
 module.exports = router;

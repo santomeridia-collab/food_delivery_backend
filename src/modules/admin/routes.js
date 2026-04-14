@@ -1,8 +1,46 @@
 'use strict';
 
 const { Router } = require('express');
-
 const router = Router();
 
-// Stub — full implementation in task 10.4
+const authenticate = require('../../common/middleware/authenticate');
+const authorize = require('../../common/middleware/authorize');
+const { analyticsSchema } = require('./validation');
+const controller = require('./controller');
+
+// Inline query validator for analytics (validate middleware targets req.body)
+const validateQuery = (schema) => (req, res, next) => {
+  const { error } = schema.validate(req.query, { abortEarly: false });
+  if (error) {
+    return res.status(422).json({
+      success: false,
+      message: 'Validation failed',
+      errors: error.details.map((d) => ({ field: d.path.join('.'), message: d.message })),
+    });
+  }
+  next();
+};
+
+router.post(
+  '/restaurants/:id/approve',
+  authenticate,
+  authorize('admin'),
+  controller.approveRestaurant
+);
+
+router.post(
+  '/agents/:id/approve',
+  authenticate,
+  authorize('admin'),
+  controller.approveDeliveryAgent
+);
+
+router.get(
+  '/analytics',
+  authenticate,
+  authorize('admin'),
+  validateQuery(analyticsSchema),
+  controller.getAnalytics
+);
+
 module.exports = router;

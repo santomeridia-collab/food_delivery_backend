@@ -1,0 +1,32 @@
+2026-04-14T12:34:04.710Z [INFO]: [jobs] Starting background jobs...
+2026-04-14T12:34:04.713Z [INFO]: [otpCleanup] Scheduled to run every 10 minutes
+2026-04-14T12:34:40.774Z [INFO]: [jobs] Starting background jobs...
+2026-04-14T12:34:40.777Z [INFO]: [otpCleanup] Scheduled to run every 10 minutes
+2026-04-14T12:34:44.884Z [INFO]: [jobs] Starting background jobs...
+2026-04-14T12:34:44.890Z [INFO]: [otpCleanup] Scheduled to run every 10 minutes
+2026-04-14T12:35:02.227Z [INFO]: [jobs] Starting background jobs...
+2026-04-14T12:35:02.230Z [INFO]: [otpCleanup] Scheduled to run every 10 minutes
+2026-04-14T12:38:46.871Z [INFO]: [jobs] Starting background jobs...
+2026-04-14T12:38:46.874Z [INFO]: [otpCleanup] Scheduled to run every 10 minutes
+2026-04-14T12:52:10.506Z [INFO]: [jobs] Starting background jobs...
+2026-04-14T12:52:10.511Z [INFO]: [otpCleanup] Scheduled to run every 10 minutes
+2026-04-14T13:56:23.680Z [ERROR]: PrismaClientKnownRequestError: 
+Invalid `prisma.oTP.deleteMany()` invocation in
+C:\Users\LENOVO\Delivery_App\Backend\src\jobs\otpCleanup.js:8:37
+
+  5 
+  6 async function cleanupExpiredOtps() {
+  7   try {
+→ 8     const result = await prisma.oTP.deleteMany(
+Raw query failed. Code: `unknown`. Message: `Kind: Server selection timeout: No available servers. Topology: { Type: ReplicaSetNoPrimary, Set Name: atlas-lrheei-shard-0, Max Set Version: 55, Max Election ID: 7fffffff00000000000000af, Servers: [ { Address: ac-3tiszhz-shard-00-00.74tccv0.mongodb.net:27017, Type: Unknown, Error: Kind: I/O error: No such host is known. (os error 11001), labels: {} }, { Address: ac-3tiszhz-shard-00-01.74tccv0.mongodb.net:27017, Type: Unknown, Error: Kind: I/O error: No such host is known. (os error 11001), labels: {} }, { Address: ac-3tiszhz-shard-00-02.74tccv0.mongodb.net:27017, Type: Unknown, Error: Kind: I/O error: No such host is known. (os error 11001), labels: {} } ] }, labels: {"TransientTransactionError"}`
+    at $n.handleRequestError (C:\Users\LENOVO\Delivery_App\Backend\node_modules\@prisma\client\runtime\library.js:121:7315)
+    at $n.handleAndLogRequestError (C:\Users\LENOVO\Delivery_App\Backend\node_modules\@prisma\client\runtime\library.js:121:6623)
+    at $n.request (C:\Users\LENOVO\Delivery_App\Backend\node_modules\@prisma\client\runtime\library.js:121:6307)
+    at async l (C:\Users\LENOVO\Delivery_App\Backend\node_modules\@prisma\client\runtime\library.js:130:9633)
+    at async Timeout.cleanupExpiredOtps [as _onTimeout] (C:\Users\LENOVO\Delivery_App\Backend\src\jobs\otpCleanup.js:8:20)
+2026-04-14T13:57:34.879Z [INFO]: [jobs] Starting background jobs...
+2026-04-14T13:57:34.885Z [INFO]: [otpCleanup] Scheduled to run every 10 minutes
+2026-04-14T13:58:50.444Z [INFO]: [jobs] Starting background jobs...
+2026-04-14T13:58:50.451Z [INFO]: [otpCleanup] Scheduled to run every 10 minutes
+2026-04-14T13:59:22.605Z [INFO]: [jobs] Starting background jobs...
+2026-04-14T13:59:22.613Z [INFO]: [otpCleanup] Scheduled to run every 10 minutes

@@ -1,0 +1,33 @@
+'use strict';
+
+const adminService = require('./service');
+const { success } = require('../../common/utils/response');
+
+const approveRestaurant = async (req, res, next) => {
+  try {
+    const restaurant = await adminService.approveRestaurant(req.params.id);
+    return success(res, 'Restaurant approved', restaurant);
+  } catch (err) {
+    next(err);
+  }
+};
+
+const approveDeliveryAgent = async (req, res, next) => {
+  try {
+    const agent = await adminService.approveDeliveryAgent(req.params.id);
+    return success(res, 'Delivery agent approved', agent);
+  } catch (err) {
+    next(err);
+  }
+};
+
+const getAnalytics = async (req, res, next) => {
+  try {
+    const analytics = await adminService.getAnalytics(req.query);
+    return success(res, 'Analytics retrieved', analytics);
+  } catch (err) {
+    next(err);
+  }
+};
+
+module.exports = { approveRestaurant, approveDeliveryAgent, getAnalytics };
