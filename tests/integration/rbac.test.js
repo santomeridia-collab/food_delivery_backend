@@ -72,13 +72,8 @@ describe('DELETE /api/users/addresses/:id — only customer', () => {
 });
 
 // ─── POST /api/restaurants/:id/menu — only restaurant_owner ──────────────────
-// Note: restaurant routes use RESTAURANT_OWNER constant = "RESTAURANT_OWNER"
 
-describe('POST /api/restaurants/:id/menu — only RESTAURANT_OWNER', () => {
-  // restaurant/routes.js uses authorize(RESTAURANT_OWNER) = "RESTAURANT_OWNER"
-  // So we need a token with role "RESTAURANT_OWNER"
-  const restaurantOwnerToken = signAccessToken({ id: 'owner-id', phone: '+10000000002', role: 'RESTAURANT_OWNER' });
-
+describe('POST /api/restaurants/:id/menu — only restaurant_owner', () => {
   const nonOwnerRoles = ['customer', 'delivery', 'admin'];
 
   test.each(nonOwnerRoles)('%s → 403', async (role) => {
@@ -92,7 +87,7 @@ describe('POST /api/restaurants/:id/menu — only RESTAURANT_OWNER', () => {
 
 // ─── PATCH /api/restaurants/:id/menu/:itemId — only restaurant_owner ─────────
 
-describe('PATCH /api/restaurants/:id/menu/:itemId — only RESTAURANT_OWNER', () => {
+describe('PATCH /api/restaurants/:id/menu/:itemId — only restaurant_owner', () => {
   const nonOwnerRoles = ['customer', 'delivery', 'admin'];
 
   test.each(nonOwnerRoles)('%s → 403', async (role) => {
@@ -200,10 +195,9 @@ describe('POST /api/delivery/:orderId/complete — only delivery', () => {
   });
 });
 
-// ─── POST /api/payments — only CUSTOMER (uppercase in payment routes) ─────────
+// ─── POST /api/payments — only customer ──────────────────────────────────────
 
-describe('POST /api/payments — only CUSTOMER', () => {
-  // payment/routes.js uses authorize("CUSTOMER") — uppercase
+describe('POST /api/payments — only customer', () => {
   const nonCustomerRoles = ['restaurant_owner', 'delivery', 'admin'];
 
   test.each(nonCustomerRoles)('%s → 403', async (role) => {
@@ -215,9 +209,9 @@ describe('POST /api/payments — only CUSTOMER', () => {
   });
 });
 
-// ─── POST /api/payments/verify — only CUSTOMER ───────────────────────────────
+// ─── POST /api/payments/verify — only customer ───────────────────────────────
 
-describe('POST /api/payments/verify — only CUSTOMER', () => {
+describe('POST /api/payments/verify — only customer', () => {
   const nonCustomerRoles = ['restaurant_owner', 'delivery', 'admin'];
 
   test.each(nonCustomerRoles)('%s → 403', async (role) => {
@@ -229,9 +223,9 @@ describe('POST /api/payments/verify — only CUSTOMER', () => {
   });
 });
 
-// ─── POST /api/payments/:id/refund — only CUSTOMER ───────────────────────────
+// ─── POST /api/payments/:id/refund — only customer ───────────────────────────
 
-describe('POST /api/payments/:id/refund — only CUSTOMER', () => {
+describe('POST /api/payments/:id/refund — only customer', () => {
   const nonCustomerRoles = ['restaurant_owner', 'delivery', 'admin'];
 
   test.each(nonCustomerRoles)('%s → 403', async (role) => {

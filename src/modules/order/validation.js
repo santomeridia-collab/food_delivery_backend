@@ -4,12 +4,12 @@ const Joi = require('joi');
 const { CONFIRMED, PREPARING, OUT_FOR_DELIVERY, DELIVERED, CANCELLED } = require('../../common/constants/orderStatus');
 
 const createOrderSchema = Joi.object({
-  restaurant_id: Joi.number().integer().positive().required(),
-  address_id: Joi.number().integer().positive().required(),
+  restaurant_id: Joi.alternatives().try(Joi.string().min(1), Joi.number().integer().positive()).required(),
+  address_id: Joi.alternatives().try(Joi.string().min(1), Joi.number().integer().positive()).required(),
   items: Joi.array()
     .items(
       Joi.object({
-        menu_item_id: Joi.number().integer().positive().required(),
+        menu_item_id: Joi.alternatives().try(Joi.string().min(1), Joi.number().integer().positive()).required(),
         quantity: Joi.number().integer().min(1).required(),
       })
     )

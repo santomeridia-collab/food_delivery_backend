@@ -8,10 +8,24 @@ const authenticate = require('../../common/middleware/authenticate');
 const authorize = require('../../common/middleware/authorize');
 
 const router = Router();
+const guard = [authenticate];
+const customerGuard = [authenticate, authorize('customer')];
 
-router.get('/me',             authenticate,                                    controller.getProfile);
-router.patch('/me',           authenticate, validate(updateProfileSchema),     controller.updateProfile);
-router.post('/addresses',     authenticate, authorize('customer'), validate(addAddressSchema), controller.addAddress);
-router.delete('/addresses/:id', authenticate, authorize('customer'),           controller.deleteAddress);
+// Profile
+router.get('/me',                       ...guard,         controller.getProfile);
+router.patch('/me',                     ...guard,         validate(updateProfileSchema), controller.updateProfile);
+
+// Addresses
+router.get('/addresses',                ...customerGuard, controller.getAddresses);
+router.post('/addresses',               ...customerGuard, validate(addAddressSchema), controller.addAddress);
+router.delete('/addresses/:id',         ...customerGuard, controller.deleteAddress);
+
+// Favorites
+router.get('/favorites',                ...customerGuard, controller.getFavorites);
+router.post('/favorites/:restaurantId', ...customerGuard, controller.addFavorite);
+router.delete('/favorites/:restaurantId',...customerGuard, controller.removeFavorite);
+
+// Wallet
+router.get('/wallet',                   ...customerGuard, controller.getWallet);
 
 module.exports = router;

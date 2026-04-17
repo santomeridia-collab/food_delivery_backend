@@ -7,7 +7,7 @@ async function cleanupExpiredOtps() {
   try {
     const result = await prisma.oTP.deleteMany({
       where: {
-        expires_at: { lt: new Date() },
+        expiresAt: { lt: new Date() },
       },
     });
     if (result.count > 0) {

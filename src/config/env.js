@@ -6,7 +6,10 @@ const schema = Joi.object({
   JWT_SECRET: Joi.string().required(),
   JWT_REFRESH_SECRET: Joi.string().required(),
   PORT: Joi.number().default(5000),
-  FCM_SERVER_KEY: Joi.string().allow("").optional()
+  FCM_SERVER_KEY: Joi.string().allow("").optional(),
+  RAZORPAY_KEY_ID: Joi.string().allow("").optional(),
+  RAZORPAY_KEY_SECRET: Joi.string().allow("").optional(),
+  RAZORPAY_WEBHOOK_SECRET: Joi.string().allow("").optional(),
 }).unknown();
 
 const { error, value } = schema.validate(process.env);

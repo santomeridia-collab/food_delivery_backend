@@ -103,7 +103,7 @@ describe('POST /api/orders', () => {
     // Create a user for the customer token
     const bcrypt = require('bcryptjs');
     const user = await prisma.user.create({
-      data: { name: 'Customer', phone: '+10000000099', password: await bcrypt.hash('pass', 10), role: 'customer' },
+      data: { name: 'Customer', phone: '+10000000099', password: await bcrypt.hash('pass', 10), role: 'customer', is_verified: true, status: 'active' },
     });
     const token = signAccessToken({ id: user.id, phone: user.phone, role: 'customer' });
 
@@ -143,7 +143,7 @@ describe('GET /api/orders', () => {
   it('200 — customer gets their orders (empty list)', async () => {
     const bcrypt = require('bcryptjs');
     const user = await prisma.user.create({
-      data: { name: 'Customer', phone: '+10000000098', password: await bcrypt.hash('pass', 10), role: 'customer' },
+      data: { name: 'Customer', phone: '+10000000098', password: await bcrypt.hash('pass', 10), role: 'customer', is_verified: true, status: 'active' },
     });
     const token = signAccessToken({ id: user.id, phone: user.phone, role: 'customer' });
 
@@ -162,10 +162,10 @@ describe('GET /api/orders', () => {
 
     // Create two customers
     const customer1 = await prisma.user.create({
-      data: { name: 'Customer 1', phone: '+10000000097', password: await bcrypt.hash('pass', 10), role: 'customer' },
+      data: { name: 'Customer 1', phone: '+10000000097', password: await bcrypt.hash('pass', 10), role: 'customer', is_verified: true, status: 'active' },
     });
     const customer2 = await prisma.user.create({
-      data: { name: 'Customer 2', phone: '+10000000096', password: await bcrypt.hash('pass', 10), role: 'customer' },
+      data: { name: 'Customer 2', phone: '+10000000096', password: await bcrypt.hash('pass', 10), role: 'customer', is_verified: true, status: 'active' },
     });
 
     const restaurant = await prisma.restaurant.create({
@@ -214,7 +214,7 @@ describe('POST /api/orders/:id/cancel', () => {
   it('400 — cancel order with status=preparing returns error', async () => {
     const bcrypt = require('bcryptjs');
     const user = await prisma.user.create({
-      data: { name: 'Customer', phone: '+10000000095', password: await bcrypt.hash('pass', 10), role: 'customer' },
+      data: { name: 'Customer', phone: '+10000000095', password: await bcrypt.hash('pass', 10), role: 'customer', is_verified: true, status: 'active' },
     });
     const restaurant = await prisma.restaurant.create({
       data: { name: 'Test Restaurant', address: '123 Main St' },
@@ -236,7 +236,7 @@ describe('POST /api/orders/:id/cancel', () => {
   it('400 — cancel order with status=out_for_delivery returns error', async () => {
     const bcrypt = require('bcryptjs');
     const user = await prisma.user.create({
-      data: { name: 'Customer', phone: '+10000000094', password: await bcrypt.hash('pass', 10), role: 'customer' },
+      data: { name: 'Customer', phone: '+10000000094', password: await bcrypt.hash('pass', 10), role: 'customer', is_verified: true, status: 'active' },
     });
     const restaurant = await prisma.restaurant.create({
       data: { name: 'Test Restaurant', address: '123 Main St' },
@@ -258,7 +258,7 @@ describe('POST /api/orders/:id/cancel', () => {
   it('400 — cancel order with status=delivered returns error', async () => {
     const bcrypt = require('bcryptjs');
     const user = await prisma.user.create({
-      data: { name: 'Customer', phone: '+10000000093', password: await bcrypt.hash('pass', 10), role: 'customer' },
+      data: { name: 'Customer', phone: '+10000000093', password: await bcrypt.hash('pass', 10), role: 'customer', is_verified: true, status: 'active' },
     });
     const restaurant = await prisma.restaurant.create({
       data: { name: 'Test Restaurant', address: '123 Main St' },

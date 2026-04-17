@@ -12,7 +12,6 @@ const DEFAULT_PASSWORD = 'Password123!';
 
 /**
  * Create a test user with the given role.
- * Returns the user record plus a pre-signed accessToken for convenience.
  */
 async function createTestUser({
   name = 'Test User',
@@ -22,7 +21,6 @@ async function createTestUser({
   role = 'customer',
   is_verified = true,
 } = {}) {
-  // Generate a unique phone if none provided
   if (!phone && !email) {
     phone = `+1${Date.now()}${Math.floor(Math.random() * 1000)}`;
   }
@@ -32,14 +30,15 @@ async function createTestUser({
   const user = await prisma.user.create({
     data: {
       name,
-      phone: phone || undefined,
-      email: email || undefined,
+      phone: phone || null,
+      email: email || null,
       password: hashed,
       role,
+      is_verified,
+      status: 'active',
     },
   });
 
-  // Build access token payload
   const tokenPayload = { id: user.id, phone: user.phone, email: user.email, role: user.role };
   const accessToken = signAccessToken(tokenPayload);
 
@@ -97,22 +96,23 @@ async function createTestPayment({
   method = 'CARD',
   status = 'pending',
 } = {}) {
-  const { v4: uuidv4 } = require('uuid');
+  const { randomUUID } = require('crypto');
   return prisma.payment.create({
-    data: { orderId, amount, method, status, reference: uuidv4() },
+    data: { orderId, amount, method, status, reference: randomUUID() },
   });
 }
 
 /**
- * Clean up all test data — call in afterEach/afterAll.
+ * Clean up all test data.
  */
 async function cleanDatabase() {
-  // Delete in dependency order
   await prisma.notification.deleteMany({});
   await prisma.payment.deleteMany({});
   await prisma.deliveryTracking.deleteMany({});
   await prisma.orderItem.deleteMany({});
   await prisma.order.deleteMany({});
+  await prisma.cartItem.deleteMany({});
+  await prisma.cart.deleteMany({});
   await prisma.menuItem.deleteMany({});
   await prisma.restaurant.deleteMany({});
   await prisma.address.deleteMany({});

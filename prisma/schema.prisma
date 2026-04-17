@@ -3,133 +3,302 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "mongodb"
   url      = env("DATABASE_URL")
 }
 
 model User {
-  id            String         @id @default(uuid())
-  name          String?
-  phone         String         @unique
-  email         String?        @unique
-  password      String?
-  role          String
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  name        String?
+  phone       String?  @unique
+  email       String?  @unique
+  password    String?
+  role        String
+  is_verified Boolean  @default(false)
+  status      String   @default("active")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   addresses     Address[]
   orders        Order[]
   notifications Notification[]
+  cart          Cart?
+  favorites     Favorite[]
+  wallet        Wallet?
 }
 
 model OTP {
-  id         String   @id @default(uuid())
-  phone      String
-  code       String
-  expiresAt  DateTime
-  createdAt  DateTime @default(now())
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  phone     String
+  code      String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
 }
 
 model Address {
-  id         String   @id @default(uuid())
-  userId     String
-  line1      String
-  line2      String?
-  city       String
-  state      String
-  pincode    String
-  latitude   Float?
-  longitude  Float?
-  createdAt  DateTime @default(now())
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @db.ObjectId
+  line1     String
+  line2     String?
+  city      String
+  state     String
+  pincode   String
+  latitude  Float?
+  longitude Float?
+  createdAt DateTime @default(now())
 
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Restaurant {
-  id          String     @id @default(uuid())
-  name        String
-  description String?
-  address     String
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  name            String
+  description     String?
+  address         String
+  email           String?
+  phone           String?
+  cuisineType     String?
+  category        String?
+  imageUrl        String?
+  bannerUrl       String?
+  rating          Float    @default(0)
+  ratingCount     Int      @default(0)
+  deliveryTimeMin Int?
+  deliveryTimMax  Int?
+  deliveryFee     Float    @default(0)
+  minOrderAmount  Float    @default(0)
+  latitude        Float?
+  longitude       Float?
+  isOpen          Boolean  @default(true)
+  isFeatured      Boolean  @default(false)
+  offerTag        String?
+  approvalStatus  String   @default("pending")
+  ownerId         String?  @db.ObjectId
+  workingHours    Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
-  menuItems   MenuItem[]
-  orders      Order[]
+  menuItems MenuItem[]
+  orders    Order[]
+  favorites Favorite[]
 }
 
 model MenuItem {
-  id            String      @id @default(uuid())
-  restaurantId  String
-  name          String
-  description   String?
-  price         Float
-  isAvailable   Boolean     @default(true)
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  restaurantId String   @db.ObjectId
+  name         String
+  description  String?
+  price        Float
+  originalPrice Float?
+  category     String?
+  imageUrl     String?
+  prepTimeMin  Int?
+  rating       Float    @default(0)
+  soldCount    Int      @default(0)
+  isAvailable  Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  restaurant    Restaurant  @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  orderItems    OrderItem[]
+  restaurant Restaurant  @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  orderItems OrderItem[]
+  cartItems  CartItem[]
 }
 
 model Order {
-  id            String             @id @default(uuid())
-  userId        String
-  restaurantId  String
-  status        String
-  totalAmount   Float
-  createdAt     DateTime           @default(now())
-  updatedAt     DateTime           @updatedAt
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  orderNumber     String?
+  userId          String   @db.ObjectId
+  restaurantId    String   @db.ObjectId
+  status          String
+  totalAmount     Float
+  deliveryAddress String?
+  deliveryLat     Float?
+  deliveryLng     Float?
+  isDelayed       Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
-  user          User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  restaurant    Restaurant         @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  items         OrderItem[]
-  payment       Payment?
-  tracking      DeliveryTracking?
+  user       User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  restaurant Restaurant        @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  items      OrderItem[]
+  payment    Payment?
+  tracking   DeliveryTracking?
 }
 
 model OrderItem {
-  id          String    @id @default(uuid())
-  orderId     String
-  menuItemId  String
-  quantity    Int
-  price       Float
+  id         String @id @default(auto()) @map("_id") @db.ObjectId
+  orderId    String @db.ObjectId
+  menuItemId String @db.ObjectId
+  quantity   Int
+  price      Float
 
-  order       Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  menuItem    MenuItem  @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  order    Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menuItem MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
 }
 
 model Payment {
-  id         String    @id @default(uuid())
-  orderId    String    @unique
-  amount     Float
-  status     String
-  method     String?
-  reference  String    @unique
-  createdAt  DateTime  @default(now())
+  id               String   @id @default(auto()) @map("_id") @db.ObjectId
+  orderId          String   @unique @db.ObjectId
+  amount           Float
+  status           String
+  method           String?
+  reference        String   @unique
+  razorpayOrderId  String?
+  razorpayPaymentId String?
+  razorpaySignature String?
+  createdAt        DateTime @default(now())
 
-  order      Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
 }
 
 model DeliveryTracking {
-  id          String    @id @default(uuid())
-  orderId     String    @unique
-  riderName   String?
-  riderPhone  String?
-  currentLat  Float?
-  currentLng  Float?
-  updatedAt   DateTime  @updatedAt
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  orderId         String    @unique @db.ObjectId
+  agentId         String?   @db.ObjectId
+  riderName       String?
+  riderPhone      String?
+  currentLat      Float?
+  currentLng      Float?
+  earnings        Float     @default(0)
+  deliveryFee     Float     @default(0)
+  distanceKm      Float?
+  estimatedMinutes Int?
+  completedAt     DateTime?
+  updatedAt       DateTime  @updatedAt
 
-  order       Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+}
+
+model AgentSession {
+  id        String    @id @default(auto()) @map("_id") @db.ObjectId
+  agentId   String    @db.ObjectId
+  goOnlineAt  DateTime  @default(now())
+  goOfflineAt DateTime?
+  durationMinutes Int?
+  createdAt DateTime  @default(now())
+}
+
+model AgentVehicle {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  agentId         String   @unique @db.ObjectId
+  vehicleType     String   // Bike, Scooter, Car, etc.
+  vehicleNumber   String
+  vehicleModel    String
+  vehicleColor    String
+  insuranceExpiry String?
+  permitNumber    String?
+  rcNumber        String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model AgentDocument {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  agentId     String   @db.ObjectId
+  type        String   // driving_license | vehicle_registration | insurance_certificate | aadhar_card | pan_card
+  fileUrl     String?
+  status      String   @default("not_uploaded") // not_uploaded | pending | verified | rejected
+  expiryDate  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model AgentBankDetail {
+  id                  String   @id @default(auto()) @map("_id") @db.ObjectId
+  agentId             String   @unique @db.ObjectId
+  accountHolderName   String
+  bankName            String
+  accountNumber       String
+  ifscCode            String
+  upiId               String?
+  isVerified          Boolean  @default(false)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 }
 
 model Notification {
-  id         String    @id @default(uuid())
-  userId     String
-  title      String
-  message    String
-  type       String
-  isRead     Boolean   @default(false)
-  createdAt  DateTime  @default(now())
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @db.ObjectId
+  title     String
+  message   String
+  type      String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
 
-  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Favorite {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId       String   @db.ObjectId
+  restaurantId String   @db.ObjectId
+  createdAt    DateTime @default(now())
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, restaurantId])
+}
+
+model SearchHistory {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @db.ObjectId
+  query     String
+  createdAt DateTime @default(now())
+}
+
+model Banner {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  imageUrl  String
+  title     String?
+  linkType  String?  // restaurant | category | url
+  linkValue String?
+  isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+}
+
+model Wallet {
+  id        String          @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String          @unique @db.ObjectId
+  balance   Float           @default(0)
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions WalletTransaction[]
+}
+
+model WalletTransaction {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  walletId    String   @db.ObjectId
+  type        String   // credit | debit
+  amount      Float
+  description String?
+  createdAt   DateTime @default(now())
+
+  wallet Wallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
+}
+
+model Cart {
+  id           String     @id @default(auto()) @map("_id") @db.ObjectId
+  userId       String     @unique @db.ObjectId
+  restaurantId String?    @db.ObjectId
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  user     User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items    CartItem[]
+}
+
+model CartItem {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  cartId     String   @db.ObjectId
+  menuItemId String   @db.ObjectId
+  quantity   Int
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  cart     Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  menuItem MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
 }

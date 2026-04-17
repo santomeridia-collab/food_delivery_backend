@@ -1,18 +1,17 @@
 'use strict';
 
 const bcrypt = require('bcryptjs');
+const { randomUUID } = require('crypto');
 const prisma = require('../../config/db');
 const redis = require('../../config/redis');
 const AppError = require('../../common/utils/AppError');
-const { signAccessToken, signRefreshToken } = require('../../common/utils/jwt');
+const { signAccessToken, signRefreshToken, verifyToken } = require('../../common/utils/jwt');
 const { generateOTP, storeOTP, verifyOTP } = require('../../common/utils/otp');
 
 const REFRESH_TTL_SECONDS = 7 * 24 * 60 * 60; // 7 days
 
 /**
  * Resolve a user by phone or email identifier.
- * @param {string} identifier
- * @returns {Promise<import('@prisma/client').User|null>}
  */
 async function findUserByIdentifier(identifier) {
   const isEmail = identifier.includes('@');
@@ -23,10 +22,8 @@ async function findUserByIdentifier(identifier) {
 
 /**
  * Register a new user.
- * At least one of email or phone is required.
  */
 async function register({ name, email, phone, password, role }) {
-  // Check uniqueness
   if (email) {
     const byEmail = await prisma.user.findUnique({ where: { email } });
     if (byEmail) throw new AppError(409, 'CONFLICT', 'Email already registered');
@@ -38,15 +35,24 @@ async function register({ name, email, phone, password, role }) {
 
   const hashed = await bcrypt.hash(password, 10);
   const user = await prisma.user.create({
-    data: { name, email: email || null, phone: phone || null, password: hashed, role, is_verified: false, status: 'active' },
+    data: {
+      name,
+      email: email || null,
+      phone: phone || null,
+      password: hashed,
+      role,
+      is_verified: false,
+      status: 'active',
+    },
     select: { id: true, email: true, phone: true, role: true },
   });
 
-  // Send OTP to whichever identifier was provided (prefer email)
   const identifier = email || phone;
   const otp = generateOTP();
   await storeOTP(identifier, otp);
-  console.info(`[OTP] ${identifier} → ${otp}`);
+  if (process.env.NODE_ENV !== 'test') {
+    console.info(`[OTP] ${identifier} → ${otp}`);
+  }
 
   return user;
 }
@@ -68,17 +74,31 @@ async function verifyOtp({ identifier, otp }) {
  * Issue tokens for a verified, authenticated user.
  */
 async function _issueTokens(user) {
-  if (!user.is_verified) throw new AppError(403, 'FORBIDDEN', 'Account not verified. Please verify your OTP first.');
+  if (!user.is_verified) {
+    throw new AppError(403, 'FORBIDDEN', 'Account not verified. Please verify your OTP first.');
+  }
 
-  const accessToken = signAccessToken({ id: user.id, phone: user.phone, email: user.email, role: user.role });
-  const { tokenId } = signRefreshToken();
+  const tokenId = randomUUID();
+  const accessToken = signAccessToken({
+    id: user.id,
+    phone: user.phone,
+    email: user.email,
+    role: user.role,
+    is_verified: user.is_verified,
+    tokenId,
+  });
+  const refreshToken = signRefreshToken({
+    id: user.id,
+    tokenId,
+  });
+
   await redis.set(`refresh:${user.id}:${tokenId}`, 'valid', 'EX', REFRESH_TTL_SECONDS);
 
-  return { accessToken, refreshToken: tokenId };
+  return { accessToken, refreshToken };
 }
 
 /**
- * Password-based login. Identifier can be phone or email.
+ * Password-based login.
  */
 async function loginWithPassword({ identifier, password, role }) {
   const user = await findUserByIdentifier(identifier);
@@ -92,7 +112,7 @@ async function loginWithPassword({ identifier, password, role }) {
 }
 
 /**
- * OTP login step 1 — send OTP to identifier.
+ * OTP login step 1 — send OTP.
  */
 async function requestLoginOtp({ identifier, role }) {
   const user = await findUserByIdentifier(identifier);
@@ -101,7 +121,9 @@ async function requestLoginOtp({ identifier, role }) {
 
   const otp = generateOTP();
   await storeOTP(identifier, otp);
-  console.info(`[OTP] ${identifier} → ${otp}`);
+  if (process.env.NODE_ENV !== 'test') {
+    console.info(`[OTP] ${identifier} → ${otp}`);
+  }
 }
 
 /**
@@ -115,7 +137,6 @@ async function verifyLoginOtp({ identifier, otp, role }) {
   if (!user) throw new AppError(404, 'NOT_FOUND', 'User not found');
   if (user.role !== role) throw new AppError(403, 'FORBIDDEN', 'Role mismatch');
 
-  // Auto-verify on first OTP login if not already verified
   if (!user.is_verified) {
     await prisma.user.update({ where: { id: user.id }, data: { is_verified: true } });
     user.is_verified = true;
@@ -127,25 +148,57 @@ async function verifyLoginOtp({ identifier, otp, role }) {
 /**
  * Refresh access token using stored refresh token.
  */
-async function refresh({ userId, tokenId }) {
+async function refresh({ refreshToken }) {
+  let decoded;
+  try {
+    decoded = verifyToken(refreshToken, true);
+  } catch {
+    throw new AppError(401, 'UNAUTHORIZED', 'Invalid or expired refresh token');
+  }
+
+  const { id: userId, tokenId } = decoded;
   const stored = await redis.get(`refresh:${userId}:${tokenId}`);
   if (!stored) throw new AppError(401, 'UNAUTHORIZED', 'Invalid or expired refresh token');
 
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { id: true, phone: true, email: true, role: true },
+    select: { id: true, phone: true, email: true, role: true, is_verified: true },
   });
   if (!user) throw new AppError(401, 'UNAUTHORIZED', 'User not found');
 
-  const accessToken = signAccessToken({ id: user.id, phone: user.phone, email: user.email, role: user.role });
-  return { accessToken };
+  const newTokenId = randomUUID();
+  const accessToken = signAccessToken({
+    id: user.id,
+    phone: user.phone,
+    email: user.email,
+    role: user.role,
+    is_verified: user.is_verified,
+    tokenId: newTokenId,
+  });
+
+  // Rotate: delete old, store new
+  await redis.del(`refresh:${userId}:${tokenId}`);
+  const newRefreshToken = signRefreshToken({ id: userId, tokenId: newTokenId });
+  await redis.set(`refresh:${userId}:${newTokenId}`, 'valid', 'EX', REFRESH_TTL_SECONDS);
+
+  return { accessToken, refreshToken: newRefreshToken };
 }
 
 /**
  * Logout — delete refresh token from Redis.
  */
 async function logout({ userId, tokenId }) {
-  await redis.del(`refresh:${userId}:${tokenId}`);
+  if (tokenId) {
+    await redis.del(`refresh:${userId}:${tokenId}`);
+  }
 }
 
-module.exports = { register, verifyOtp, loginWithPassword, requestLoginOtp, verifyLoginOtp, refresh, logout };
+module.exports = {
+  register,
+  verifyOtp,
+  loginWithPassword,
+  requestLoginOtp,
+  verifyLoginOtp,
+  refresh,
+  logout,
+};

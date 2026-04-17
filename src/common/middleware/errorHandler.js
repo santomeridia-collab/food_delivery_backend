@@ -1,7 +1,11 @@
 const logger = require("../utils/logger");
 
 const errorHandler = (err, req, res, next) => {
-  logger.error(err.stack || err.message);
+  // Only log unexpected server errors — 4xx are expected client errors
+  const statusCode = err.statusCode || 500;
+  if (statusCode >= 500) {
+    logger.error(err.stack || err.message);
+  }
 
   if (err.statusCode) {
     return res.status(err.statusCode).json({

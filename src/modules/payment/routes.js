@@ -1,39 +1,41 @@
-const express = require("express");
+'use strict';
+
+const express = require('express');
 const router = express.Router();
 
-const authenticate = require("../../common/middleware/authenticate");
-const authorize = require("../../common/middleware/authorize");
-const validate = require("../../common/middleware/validate");
+const authenticate = require('../../common/middleware/authenticate');
+const authorize = require('../../common/middleware/authorize');
+const validate = require('../../common/middleware/validate');
+const { createPaymentSchema, verifyPaymentSchema, refundSchema } = require('./validation');
+const controller = require('./controller');
 
-const paymentController = require("./controller");
-const {
-  createPaymentSchema,
-  verifyPaymentSchema,
-  refundSchema
-} = require("./validation");
+// Webhook — must use express.raw() to preserve raw body for signature validation
+// Registered BEFORE express.json() parses the body
+router.post(
+  '/webhook',
+  express.raw({ type: 'application/json' }),
+  controller.webhook
+);
 
 router.post(
-  "/",
-  authenticate,
-  authorize("CUSTOMER"),
+  '/',
+  authenticate, authorize('customer'),
   validate(createPaymentSchema),
-  paymentController.createPayment
+  controller.createPayment
 );
 
 router.post(
-  "/verify",
-  authenticate,
-  authorize("CUSTOMER"),
+  '/verify',
+  authenticate, authorize('customer'),
   validate(verifyPaymentSchema),
-  paymentController.verifyPayment
+  controller.verifyPayment
 );
 
 router.post(
-  "/:id/refund",
-  authenticate,
-  authorize("CUSTOMER"),
+  '/:id/refund',
+  authenticate, authorize('customer'),
   validate(refundSchema),
-  paymentController.refund
+  controller.refund
 );
 
 module.exports = router;

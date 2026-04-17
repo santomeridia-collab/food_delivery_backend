@@ -5,7 +5,7 @@ const AppError = require('../../common/utils/AppError');
 
 const approveRestaurant = async (restaurantId) => {
   const restaurant = await prisma.restaurant.findUnique({
-    where: { id: Number(restaurantId) },
+    where: { id: restaurantId },
   });
 
   if (!restaurant) {
@@ -13,14 +13,14 @@ const approveRestaurant = async (restaurantId) => {
   }
 
   return prisma.restaurant.update({
-    where: { id: Number(restaurantId) },
-    data: { approval_status: 'approved' },
+    where: { id: restaurantId },
+    data: { approvalStatus: 'approved' },
   });
 };
 
 const approveDeliveryAgent = async (agentId) => {
   const agent = await prisma.user.findUnique({
-    where: { id: Number(agentId) },
+    where: { id: agentId },
   });
 
   if (!agent) {
@@ -32,7 +32,7 @@ const approveDeliveryAgent = async (agentId) => {
   }
 
   return prisma.user.update({
-    where: { id: Number(agentId) },
+    where: { id: agentId },
     data: { status: 'active' },
   });
 };
@@ -45,24 +45,24 @@ const getAnalytics = async ({ startDate, endDate }) => {
     // Total orders created within range
     prisma.order.count({
       where: {
-        created_at: { gte: start, lte: end },
+        createdAt: { gte: start, lte: end },
       },
     }),
 
-    // Total revenue: sum of totals where payment_status = 'paid'
-    prisma.order.aggregate({
-      _sum: { total: true },
+    // Total revenue: sum of totalAmount where payment status is SUCCESS
+    prisma.payment.aggregate({
+      _sum: { amount: true },
       where: {
-        created_at: { gte: start, lte: end },
-        payment_status: 'paid',
+        status: 'SUCCESS',
+        order: { createdAt: { gte: start, lte: end } },
       },
     }),
 
     // Active restaurants: approved AND open
     prisma.restaurant.count({
       where: {
-        approval_status: 'approved',
-        is_open: true,
+        approvalStatus: 'approved',
+        isOpen: true,
       },
     }),
 
@@ -77,7 +77,7 @@ const getAnalytics = async ({ startDate, endDate }) => {
 
   return {
     totalOrders,
-    totalRevenue: revenueResult._sum.total ?? 0,
+    totalRevenue: revenueResult._sum.amount ?? 0,
     activeRestaurants,
     activeDeliveryAgents: activeAgents,
   };

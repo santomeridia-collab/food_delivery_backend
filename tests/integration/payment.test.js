@@ -41,10 +41,9 @@ afterEach(async () => {
 async function createUserAndToken(phone = '+10000000080') {
   const bcrypt = require('bcryptjs');
   const user = await prisma.user.create({
-    data: { name: 'Customer', phone, password: await bcrypt.hash('pass', 10), role: 'CUSTOMER' },
+    data: { name: 'Customer', phone, password: await bcrypt.hash('pass', 10), role: 'customer', is_verified: true, status: 'active' },
   });
-  // Payment routes use authorize("CUSTOMER") — uppercase
-  const token = signAccessToken({ id: user.id, phone: user.phone, role: 'CUSTOMER' });
+  const token = signAccessToken({ id: user.id, phone: user.phone, role: 'customer' });
   return { user, token };
 }
 

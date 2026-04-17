@@ -1,6 +1,8 @@
+'use strict';
+
 module.exports = {
-    CUSTOMER: "CUSTOMER",
-    ADMIN: "ADMIN",
-    DELIVERY_PARTNER: "DELIVERY_PARTNER",
-    RESTAURANT_OWNER: "RESTAURANT_OWNER"
-  };
+  CUSTOMER:         'customer',
+  RESTAURANT_OWNER: 'restaurant_owner',
+  DELIVERY:         'delivery',
+  ADMIN:            'admin',
+};

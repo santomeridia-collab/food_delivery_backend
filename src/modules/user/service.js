@@ -42,7 +42,15 @@ async function updateProfile(userId, { name, email, phone, password }) {
 /** Add a new address for the authenticated user. */
 async function addAddress(userId, { address, lat, lng }) {
   return prisma.address.create({
-    data: { user_id: userId, address, lat, lng },
+    data: {
+      userId,
+      line1: address,
+      city: 'N/A',
+      state: 'N/A',
+      pincode: '000000',
+      latitude: lat ?? null,
+      longitude: lng ?? null,
+    },
   });
 }
 
@@ -50,7 +58,7 @@ async function addAddress(userId, { address, lat, lng }) {
 async function deleteAddress(userId, addressId) {
   const addr = await prisma.address.findUnique({ where: { id: addressId } });
   if (!addr) throw new AppError(404, 'NOT_FOUND', 'Address not found');
-  if (addr.user_id !== userId) throw new AppError(403, 'FORBIDDEN', 'You do not own this address');
+  if (addr.userId !== userId) throw new AppError(403, 'FORBIDDEN', 'You do not own this address');
   await prisma.address.delete({ where: { id: addressId } });
 }
 

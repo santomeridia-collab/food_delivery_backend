@@ -1,6 +1,5 @@
 'use strict';
 
-const { execSync } = require('child_process');
 const path = require('path');
 
 module.exports = async function globalSetup() {
@@ -19,14 +18,8 @@ module.exports = async function globalSetup() {
   process.env.DATABASE_URL = process.env.TEST_DATABASE_URL;
   process.env.REDIS_URL = process.env.TEST_REDIS_URL;
 
-  // Run migrations on the test database
-  try {
-    execSync('npx prisma migrate deploy', {
-      env: { ...process.env, DATABASE_URL: process.env.TEST_DATABASE_URL },
-      stdio: 'inherit',
-    });
-  } catch (err) {
-    console.error('Migration failed:', err.message);
-    throw err;
-  }
+  // MongoDB does not use SQL migrations — Prisma manages the schema automatically.
+  // Skip migrate deploy for MongoDB provider.
+  console.log('[Test Setup] Using MongoDB — skipping prisma migrate deploy.');
+  console.log('[Test Setup] Environment loaded from .env.test');
 };
