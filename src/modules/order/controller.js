@@ -37,9 +37,18 @@ async function cancelOrder(req, res, next) {
 async function updateOrderStatus(req, res, next) {
   try {
     const io = req.app.get('io');
-    const order = await service.updateOrderStatus(req.params.id, req.body.status, io);
+
+    const order = await service.updateOrderStatus(
+      req.params.id,
+      req.body.status,
+      req.user,
+      io
+    );
+
     return success(res, 'Order status updated', order);
-  } catch (err) { next(err); }
+  } catch (err) {
+    next(err);
+  }
 }
 
 /**POST /orders/:id/request */
@@ -60,4 +69,54 @@ async function createOrderRequest(req, res, next){
   }
 }
 
-module.exports = { createOrder, getOrders, cancelOrder, updateOrderStatus, createOrderRequest };
+//Order tracking
+async function getOrderTracking(req, res, next) {
+  try {
+    const tracking = await service.getOrderTracking(
+      req.params.id,
+      req.user
+    );
+
+    return success(
+      res,
+      "Tracking retrieved successfully",
+      tracking
+    );
+  } catch (err) {
+    next(err);
+  }
+}
+
+/** GET /orders/requests/:id - Unified endpoint for restaurant and grocery owners */
+async function getOrderRequestForOwner(req, res, next) {
+  try {
+    const orderRequest = await service.getOrderRequestForOwner(
+      req.params.id,
+      req.user.id
+    );
+
+    return success(res, 'Order request retrieved', orderRequest);
+  } catch (err) {
+    next(err);
+  }
+}
+
+/** PATCH /orders/requests/:id - Unified endpoint for updating order requests */
+async function updateOrderRequestForOwner(req, res, next) {
+  try {
+    const result = await service.updateOrderRequestForOwner(
+      req.params.id,
+      req.user.id,
+      req.body.status
+    );
+
+    return success(res, 'Order request updated', result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+module.exports = { 
+  createOrder, getOrders, cancelOrder, updateOrderStatus, createOrderRequest, getOrderTracking,
+  getOrderRequestForOwner, updateOrderRequestForOwner
+};
