@@ -212,10 +212,14 @@ Create an order. Requires `customer` role.
 **Body**
 ```json
 {
-  "restaurant_id": 1,
+  "store_id": 1,
+  "store_type": "restaurant",
   "address_id": 1,
   "items": [
-    { "menu_item_id": 1, "quantity": 2 }
+    {
+      "item_id": 1,
+      "quantity": 2
+    }
   ]
 }
 ```
@@ -235,6 +239,27 @@ Get current customer's orders (paginated). Requires `customer` role.
 Cancel an order. Requires `customer` role. Only allowed from `pending` or `confirmed` status.
 
 ---
+### POST /api/orders/:id/request
+
+Create an order request. Requires `customer` role.
+
+**Body**
+```json
+{
+  "type": "REFUND",
+  "store_type": "restaurant",
+  "reason": "Food quality issue",
+  "image_url": "https://example.com/image.jpg",
+  "items": [
+    {
+      "item_id": "1",
+      "quantity": 1
+    }
+  ]
+}
+```
+
+**Response 201** – Order request created
 
 ### PATCH /api/orders/:id/status
 Update order status. Requires `restaurant_owner` or `delivery` role.
