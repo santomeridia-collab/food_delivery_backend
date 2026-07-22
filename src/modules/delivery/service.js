@@ -107,12 +107,12 @@ async function getDashboard(agentId) {
       avgPerDelivery: totalDeliveries > 0 ? +(earningsTotal / totalDeliveries).toFixed(2) : 0,
     },
     onlineHours: {
-      totalMinutes : totalOnlineMinutes,
-      totalHours:+(totalOnlineMinutes / 60).toFixed(2),
+      totalMinutes: totalOnlineMinutes,
+      totalHours: +(totalOnlineMinutes / 60).toFixed(2),
       todayMinutes: todayOnlineMinutes,
       todayHours: +(todayOnlineMinutes / 60).toFixed(2),
-      thisWeekMinutes : weekOnlineMinutes,
-      thisMonthMinutes : monthOnlineMinutes,
+      thisWeekMinutes: weekOnlineMinutes,
+      thisMonthMinutes: monthOnlineMinutes,
     },
     activeDelivery: activeTracking,
   };
@@ -121,6 +121,9 @@ async function getDashboard(agentId) {
 // ─── Online / Offline toggle ──────────────────────────────────────────────────
 
 async function goOnline(agentId) {
+  if (!agentId) {
+    throw new AppError(400, 'BAD_REQUEST', 'Agent ID is required');
+  }
   const open = await prisma.agentSession.findFirst({ where: { agentId, goOfflineAt: null } });
   if (open) return { message: 'Already online', session: open };
   const session = await prisma.agentSession.create({ data: { agentId } });
@@ -128,6 +131,9 @@ async function goOnline(agentId) {
 }
 
 async function goOffline(agentId) {
+  if (!agentId) {
+    throw new AppError(400, 'BAD_REQUEST', 'Agent ID is required');
+  }
   const open = await prisma.agentSession.findFirst({ where: { agentId, goOfflineAt: null } });
   if (!open) return { message: 'Already offline' };
 
