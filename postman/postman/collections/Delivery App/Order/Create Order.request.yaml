@@ -7,22 +7,18 @@ headers:
 body:
   type: json
   content: "{\r
-
-    \  \"restaurant_id\": \"6a3cea1cc809de17f352dc87\",\r
-
-    \  \"address_id\": \"6a3d706c99f8c2487d8bf7d2\",\r
-
-    \  \"items\": [\r
-
-    \    {\r
-
-    \      \"menu_item_id\": \"6a3cedf2c809de17f352dc89\",\r
-
-    \      \"quantity\": 2\r
-
-    \    }\r
-
-    \  ]\r
-
-    }"
+  \r
+  \"store_id\": \"63accea1cc809de17f352dc87\",\r
+  \r
+  \"store_type\": \"restaurant\",\r
+  \r
+  \"address_id\": \"63ad706c99f8c2487d8bf7d2\",\r
+  \r
+  \"items\": [\r
+    {\r
+      \"item_id\": \"63cedf2c809de17f352dc89\",\r
+      \"quantity\": 2\r
+    }\r
+  ]\r
+}"
 order: 1000
