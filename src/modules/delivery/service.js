@@ -126,7 +126,7 @@ async function goOnline(agentId) {
   }
   const open = await prisma.agentSession.findFirst({ where: { agentId, goOfflineAt: null } });
   if (open) return { message: 'Already online', session: open };
-  const session = await prisma.agentSession.create({ data: { agentId } });
+  const session = await prisma.agentSession.create({ data: { agentId, goOnlineAt:null } });
   return { message: 'You are now online', session };
 }
 
