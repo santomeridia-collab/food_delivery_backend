@@ -201,6 +201,61 @@ Update a menu item. Requires `restaurant_owner` role.
 ```json
 { "price": 11.99, "is_available": false }
 ```
+## Cart — `/api/cart`
+
+### GET /api/cart
+Get the current customer's cart. Requires `customer` role.
+
+**Response 200**
+```json
+{ "items": [], "total": 0, "restaurantId": null, "storeId": null }
+```
+
+---
+
+### POST /api/cart/items
+Add an item to the cart. Requires `customer` role.
+
+**Body**
+```json
+{ "item_id": 1, "store_type": "restaurant", "quantity": 2 }
+```
+
+**Response 200**
+```json
+{ "success": true, "data": { "items": [], "total": 19.98 } }
+```
+
+---
+
+### PATCH /api/cart/items/:itemId
+Update the quantity of a cart item. Requires `customer` role.
+
+**Body**
+```json
+{ "quantity": 3 }
+```
+
+**Response 200** — Updated cart returned.
+
+---
+
+### DELETE /api/cart/items/:itemId
+Remove a specific item from the cart. Requires `customer` role.
+
+**Response 200** — Updated cart returned.
+
+---
+
+### DELETE /api/cart
+Clear all items from the current customer's cart. Requires `customer` role.
+
+**Response 200**
+```json
+{ "success": true }
+```
+
+---
 
 ---
 
