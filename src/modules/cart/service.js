@@ -21,13 +21,13 @@ async function getCart(userId) {
     },
   });
 
-  if (!cart) return { items: [], total: 0, restaurantId: null, storeId: null };
+ if (!cart) return { items: [], itemCount: 0, totalQuantity: 0, total: 0, restaurantId: null, storeId: null };
 
   const total = cart.items.reduce((sum, i) => {
     const price = i.menuItem ? i.menuItem.price : (i.groceryProduct ? i.groceryProduct.price : 0);
     return sum + price * i.quantity;
   }, 0);
-  return { ...cart, total };
+ return { ...cart, itemCount: cart.items.length, totalQuantity: cart.items.reduce((sum, item) => sum + item.quantity, 0), total };
 }
 
 /**

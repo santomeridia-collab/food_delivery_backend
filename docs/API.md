@@ -316,8 +316,39 @@ Create an order request. Requires `customer` role.
 
 **Response 201** – Order request created
 
+### GET /api/orders/requests/:id
+
+Get an order request. Requires `restaurant_owner` or `seller` role.
+
+**Response 200**
+
+```json
+{
+  "success": true,
+  "message": "Order request retrieved"
+}
+```
+
+---
+
+### PATCH /api/orders/requests/:id
+
+Update an order request. Requires `restaurant_owner` or `seller` role.
+
+**Body**
+
+```json
+{
+  "status": "ACCEPTED"
+}
+```
+
+**Response 200**
+
+Order request updated.
+
 ### PATCH /api/orders/:id/status
-Update order status. Requires `restaurant_owner` or `delivery` role.
+Update order status. Requires `restaurant_owner`, `seller`, or `delivery` role.
 
 **Body**
 ```json
