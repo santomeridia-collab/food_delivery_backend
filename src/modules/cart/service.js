@@ -11,6 +11,7 @@ const ORDER_STATUS = require('../../common/constants/orderStatus');
  * @param {string} userId - The ID of the user whose cart is being fetched.
  * @returns {Promise<Object>} An object containing the cart items, total amount, and the associated store/restaurant ID.
  */
+
 async function getCart(userId) {
   const cart = await prisma.cart.findUnique({
     where: { userId },
@@ -21,15 +22,56 @@ async function getCart(userId) {
     },
   });
 
- if (!cart) return { items: [], itemCount: 0, totalQuantity: 0, total: 0, restaurantId: null, storeId: null };
+  if (!cart) return {
+    items: [],
+    itemCount: 0,
+    totalQuantity: 0,
+    total: 0,
+    restaurantId: null,
+    storeId: null,
+    summary: { deliveryFee: 0, minOrderAmount: 0, remainingForMinimum: 0, grandTotal: 0, canCheckout: false },
+  };
 
   const total = cart.items.reduce((sum, i) => {
     const price = i.menuItem ? i.menuItem.price : (i.groceryProduct ? i.groceryProduct.price : 0);
     return sum + price * i.quantity;
   }, 0);
- return { ...cart, itemCount: cart.items.length, totalQuantity: cart.items.reduce((sum, item) => sum + item.quantity, 0), total };
-}
 
+  const itemCount = cart.items.length;
+  const totalQuantity = cart.items.reduce((sum, i) => sum + i.quantity, 0);
+
+  let deliveryFee = 0, minOrderAmount = 0;
+
+  if (cart.restaurantId) {
+    const restaurant = await prisma.restaurant.findUnique({
+      where: { id: cart.restaurantId },
+      select: { deliveryFee: true, minOrderAmount: true },
+    });
+    deliveryFee = restaurant?.deliveryFee || 0;
+    minOrderAmount = restaurant?.minOrderAmount || 0;
+  } else if (cart.storeId) {
+    const store = await prisma.store.findUnique({
+      where: { id: cart.storeId },
+      select: { deliveryFee: true, minOrderAmount: true },
+    });
+    deliveryFee = store?.deliveryFee || 0;
+    minOrderAmount = store?.minOrderAmount || 0;
+  }
+
+  return {
+    ...cart,
+    itemCount,
+    totalQuantity,
+    total,
+    summary: {
+      deliveryFee,
+      minOrderAmount,
+      remainingForMinimum: Math.max(0, minOrderAmount - total),
+      grandTotal: total + deliveryFee,
+      canCheckout: total >= minOrderAmount,
+    },
+  };
+}
 /**
  * Add a new item to the cart or increment its quantity if it already exists.
  * Implements strict conflict validation to ensure the cart only contains items from a single seller 
