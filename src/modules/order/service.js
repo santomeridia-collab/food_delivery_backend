@@ -9,6 +9,7 @@ const REQUEST_TYPE = require("../../common/constants/requestType");
 const { deductStock, restoreStockForOrder } = require('../../common/utils/stockUtils');
 const { restoreStock } = require('../../common/utils/stockUtils');
 const paymentService = require('../payment/service');
+const { clearCart } = require("../cart/service"); // Cart service
 
 const VALID_TRANSITIONS = {
   [ORDER_STATUS.PENDING]: [ORDER_STATUS.CONFIRMED, ORDER_STATUS.CANCELLED],
@@ -49,6 +50,13 @@ async function createOrder(customerId, { store_id, address_id, items, store_type
   if (!address && additionalData?.addressLine) {
     address = additionalData;
   }
+
+  // Prevent duplicate active orders from the same store
+const existingOrder=await prisma.order.findFirst({
+  where:{userId:customerId,status:{in:[ORDER_STATUS.PENDING,ORDER_STATUS.CONFIRMED,ORDER_STATUS.PREPARING,ORDER_STATUS.OUT_FOR_DELIVERY]},...(store_type==="restaurant"?{restaurantId:store_id}:{storeId:store_id})}
+});
+
+if(existingOrder) throw new AppError(400,"ORDER_ALREADY_EXISTS","You already have an active order from this store.");
 
   let menuItems;
   if (store_type == "restaurant") {
@@ -142,7 +150,8 @@ async function createOrder(customerId, { store_id, address_id, items, store_type
   if (store_type === 'grocery') {
     await deductStock(prisma, items);
   }
-
+// Clear the user's cart after a successful order
+ await clearCart(customerId);
   return order;
 }
 
