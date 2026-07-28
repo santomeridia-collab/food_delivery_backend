@@ -6,7 +6,7 @@ const router = express.Router();
 const authenticate = require('../../common/middleware/authenticate');
 const authorize = require('../../common/middleware/authorize');
 const validate = require('../../common/middleware/validate');
-const { createPaymentSchema, verifyPaymentSchema } = require('./validation');
+const { createPaymentSchema, verifyPaymentSchema, paymentHistorySchema } = require("./validation");
 const controller = require('./controller');
 
 // Webhook — must use express.raw() to preserve raw body for signature validation
@@ -36,6 +36,7 @@ router.get(
   "/history",
   authenticate,
   authorize("customer"),
+  validate(paymentHistorySchema, "query"),
   controller.paymentHistory
 );
 

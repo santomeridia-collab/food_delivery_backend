@@ -21,7 +21,7 @@ const verifyPayment = async (req, res, next) => {
 // Get payment history for the logged-in user
 const paymentHistory = async (req, res, next) => {
   try {
-    const result = await paymentService.getPaymentHistory(req.user.id);
+    const result = await paymentService.getPaymentHistory(req.user.id, req.query);
     return success(res, "Payment history fetched", result);
   } catch (err) {
     next(err);

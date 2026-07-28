@@ -19,4 +19,10 @@ const verifyPaymentSchema = Joi.object({
   success: Joi.boolean().optional(),
 }).or('razorpaySignature', 'success'); // at least one must be present
 
-module.exports = { createPaymentSchema, verifyPaymentSchema };
+// Supports optional filters for payment history
+const paymentHistorySchema = Joi.object({
+  status: Joi.string().valid("PENDING", "SUCCESS", "FAILED", "REFUNDED").optional(),
+  method: Joi.string().valid("COD", "CARD", "UPI", "NETBANKING", "RAZORPAY").optional(),
+});
+
+module.exports = { createPaymentSchema, verifyPaymentSchema, paymentHistorySchema };

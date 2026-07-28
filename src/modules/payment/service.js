@@ -273,9 +273,13 @@ const processRefund = async (orderId, amount) => {
   });
 };
 
-const getPaymentHistory = (userId) =>
+const getPaymentHistory = (userId, filters = {}) =>
   prisma.payment.findMany({
-    where: { order: { userId } },
+   where: {
+  order: { userId },
+  ...(filters.status && { status: filters.status }),
+  ...(filters.method && { method: filters.method }),
+},
     include: { order: { select: { id: true, status: true } } },
     orderBy: { createdAt: "desc" },
   });
