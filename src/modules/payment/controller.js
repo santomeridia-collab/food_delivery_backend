@@ -18,6 +18,15 @@ const verifyPayment = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
+// Get payment history for the logged-in user
+const paymentHistory = async (req, res, next) => {
+  try {
+    const result = await paymentService.getPaymentHistory(req.user.id);
+    return success(res, "Payment history fetched", result);
+  } catch (err) {
+    next(err);
+  }
+};
 /**
  * POST /api/payments/webhook
  * Razorpay sends raw body — must be parsed with express.raw() before this handler.
@@ -33,4 +42,4 @@ const webhook = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
-module.exports = { createPayment, verifyPayment, webhook };
+module.exports = { createPayment, verifyPayment, webhook, paymentHistory };

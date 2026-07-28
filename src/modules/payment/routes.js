@@ -31,4 +31,12 @@ router.post(
   controller.verifyPayment
 );
 
+// Get payment history for the logged-in user
+router.get(
+  "/history",
+  authenticate,
+  authorize("customer"),
+  controller.paymentHistory
+);
+
 module.exports = router;
