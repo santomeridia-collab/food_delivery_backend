@@ -273,4 +273,11 @@ const processRefund = async (orderId, amount) => {
   });
 };
 
-module.exports = { createPayment, verifyPayment, handleWebhook, processRefund };
+const getPaymentHistory = (userId) =>
+  prisma.payment.findMany({
+    where: { order: { userId } },
+    include: { order: { select: { id: true, status: true } } },
+    orderBy: { createdAt: "desc" },
+  });
+
+  module.exports = { createPayment, verifyPayment, handleWebhook, processRefund, getPaymentHistory };
