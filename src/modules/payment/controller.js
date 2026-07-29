@@ -21,8 +21,26 @@ const verifyPayment = async (req, res, next) => {
 // Get payment history for the logged-in user
 const paymentHistory = async (req, res, next) => {
   try {
-    const result = await paymentService.getPaymentHistory(req.user.id);
+    const result = await paymentService.getPaymentHistory(req.user.id, req.query);
     return success(res, "Payment history fetched", result);
+  } catch (err) {
+    next(err);
+  }
+};
+ 
+const sellerPaymentHistory = async (req, res, next) => {
+  try {
+    const payments = await paymentService.getSellerPaymentHistory(req.user.id, req.query);
+    return res.status(200).json({ success: true, data: payments });
+  } catch (err) {
+    next(err);
+  }
+};
+
+const paymentStats = async (req, res, next) => {
+  try {
+    const stats = await paymentService.getPaymentStats();
+    return res.status(200).json({ success: true, data: stats });
   } catch (err) {
     next(err);
   }
@@ -42,4 +60,4 @@ const webhook = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
-module.exports = { createPayment, verifyPayment, webhook, paymentHistory };
+module.exports = { createPayment, verifyPayment, webhook, paymentHistory, sellerPaymentHistory, paymentStats };
