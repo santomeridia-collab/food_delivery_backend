@@ -284,4 +284,29 @@ const getPaymentHistory = (userId, filters = {}) =>
     orderBy: { createdAt: "desc" },
   });
 
-  module.exports = { createPayment, verifyPayment, handleWebhook, processRefund, getPaymentHistory };
+const getSellerPaymentHistory = (ownerId, filters = {}) =>
+  prisma.payment.findMany({
+    where: {
+      OR: [
+        { order: { restaurant: { ownerId } } },
+        { order: { store: { ownerId } } },
+      ],
+      ...(filters.status && { status: filters.status }),
+      ...(filters.method && { method: filters.method }),
+    },
+    include: { order: true },
+    orderBy: { createdAt: "desc" },
+  });
+
+  const getPaymentStats = async () => {
+  const [total, success, failed, pending] = await Promise.all([
+    prisma.payment.count(),
+    prisma.payment.count({ where: { status: PAYMENT_STATUS.SUCCESS } }),
+    prisma.payment.count({ where: { status: PAYMENT_STATUS.FAILED } }),
+    prisma.payment.count({ where: { status: PAYMENT_STATUS.PENDING } }),
+  ]);
+
+  return { total, success, failed, pending };
+};
+
+  module.exports = { createPayment, verifyPayment, handleWebhook, processRefund, getPaymentHistory, getSellerPaymentHistory, getPaymentStats };

@@ -40,4 +40,21 @@ router.get(
   controller.paymentHistory
 );
 
+// Get payment history for the logged-in seller
+router.get(
+  '/seller-history',
+  authenticate,
+  authorize('seller'),
+  validate(paymentHistorySchema, 'query'),
+  controller.sellerPaymentHistory
+);
+
+// Get payment statistics
+router.get(
+  '/stats',
+  authenticate,
+  authorize('admin'),
+  controller.paymentStats
+);
+
 module.exports = router;

@@ -27,6 +27,24 @@ const paymentHistory = async (req, res, next) => {
     next(err);
   }
 };
+ 
+const sellerPaymentHistory = async (req, res, next) => {
+  try {
+    const payments = await paymentService.getSellerPaymentHistory(req.user.id, req.query);
+    return res.status(200).json({ success: true, data: payments });
+  } catch (err) {
+    next(err);
+  }
+};
+
+const paymentStats = async (req, res, next) => {
+  try {
+    const stats = await paymentService.getPaymentStats();
+    return res.status(200).json({ success: true, data: stats });
+  } catch (err) {
+    next(err);
+  }
+};
 /**
  * POST /api/payments/webhook
  * Razorpay sends raw body — must be parsed with express.raw() before this handler.
@@ -42,4 +60,4 @@ const webhook = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
-module.exports = { createPayment, verifyPayment, webhook, paymentHistory };
+module.exports = { createPayment, verifyPayment, webhook, paymentHistory, sellerPaymentHistory, paymentStats };
