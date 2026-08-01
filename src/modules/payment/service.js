@@ -7,7 +7,9 @@ const prisma = require('../../config/db');
 const AppError = require('../../common/utils/AppError');
 const PAYMENT_STATUS = require('../../common/constants/paymentStatus');
 const ORDER_STATUS = require('../../common/constants/orderStatus');
-
+const { emitNewOrder, emitOrderStatusUpdate } = require('../../sockets/orderHandlers');
+const { emitNewDeliveryRequest } = require('../../sockets/deliveryHandlers');
+const { restoreStockForOrder } = require('../../common/utils/stockUtils');
 // ─── Razorpay client (lazy — only initialised when keys are present) ──────────
 
 function getRazorpay() {
@@ -72,7 +74,7 @@ const createPayment = async ({ orderId, amount, method, userId }) => {
  * Verifies the Razorpay signature returned by the client after payment.
  * Falls back to the old mock-success flow when Razorpay keys are absent.
  */
-const verifyPayment = async ({ paymentId, razorpayPaymentId, razorpayOrderId, razorpaySignature, success: mockSuccess, userId }) => {
+const verifyPayment = async ({ paymentId, razorpayPaymentId, razorpayOrderId, razorpaySignature, success: mockSuccess, userId }, io) => {
   const payment = await prisma.payment.findUnique({
     where: { id: paymentId },
     include: { order: true },
@@ -116,7 +118,20 @@ const verifyPayment = async ({ paymentId, razorpayPaymentId, razorpayOrderId, ra
     updatedOrder = await prisma.order.update({
       where: { id: payment.orderId },
       data: { status: ORDER_STATUS.CONFIRMED },
+      include: { restaurant: true, store: true }
     });
+
+    if (io) {
+      emitOrderStatusUpdate(io, updatedOrder.userId, {
+        order_id: updatedOrder.id,
+        status: ORDER_STATUS.CONFIRMED,
+      });
+
+      const ownerId = updatedOrder.restaurant ? updatedOrder.restaurant.ownerId : (updatedOrder.store ? updatedOrder.store.ownerId : null);
+      if (ownerId) {
+        emitNewOrder(io, ownerId, { order_id: updatedOrder.id, status: ORDER_STATUS.CONFIRMED });
+      }
+    }
   } else {
     updatedPayment = await prisma.payment.update({
       where: { id: paymentId },
@@ -126,6 +141,13 @@ const verifyPayment = async ({ paymentId, razorpayPaymentId, razorpayOrderId, ra
       where: { id: payment.orderId },
       data: { status: ORDER_STATUS.CANCELLED },
     });
+
+    // ── Stock restoration on payment failure (grocery orders only) ──────────
+    // When payment fails, the order is cancelled; restore grocery stock so
+    // other customers can buy the same items.
+    if (payment.order.storeId) {
+      await restoreStockForOrder(prisma, payment.orderId);
+    }
   }
 
   return { payment: updatedPayment, order: updatedOrder };
@@ -137,7 +159,7 @@ const verifyPayment = async ({ paymentId, razorpayPaymentId, razorpayOrderId, ra
  * Validates the Razorpay webhook signature and processes the event.
  * rawBody must be the raw Buffer from express.raw() middleware.
  */
-const handleWebhook = async (rawBody, signature) => {
+const handleWebhook = async (rawBody, signature, io) => {
   const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
   if (!webhookSecret) throw new AppError(500, 'CONFIG_ERROR', 'Webhook secret not configured');
 
@@ -162,16 +184,33 @@ const handleWebhook = async (rawBody, signature) => {
   const payment = await prisma.payment.findFirst({ where: { razorpayOrderId } });
   if (!payment) return { processed: false, reason: 'Payment record not found' };
 
+  if (payment.status !== PAYMENT_STATUS.PENDING) {
+    return { processed: true, reason: 'Payment already processed' };
+  }
+
   switch (event.event) {
     case 'payment.captured': {
       await prisma.payment.update({
         where: { id: payment.id },
         data: { status: PAYMENT_STATUS.SUCCESS, razorpayPaymentId },
       });
-      await prisma.order.update({
+      const updatedOrder = await prisma.order.update({
         where: { id: payment.orderId },
         data: { status: ORDER_STATUS.CONFIRMED },
+        include: { restaurant: true, store: true }
       });
+
+      if (io) {
+        emitOrderStatusUpdate(io, updatedOrder.userId, {
+          order_id: updatedOrder.id,
+          status: ORDER_STATUS.CONFIRMED,
+        });
+
+        const ownerId = updatedOrder.restaurant ? updatedOrder.restaurant.ownerId : (updatedOrder.store ? updatedOrder.store.ownerId : null);
+        if (ownerId) {
+          emitNewOrder(io, ownerId, { order_id: updatedOrder.id, status: ORDER_STATUS.CONFIRMED });
+        }
+      }
       break;
     }
     case 'payment.failed': {
@@ -179,10 +218,15 @@ const handleWebhook = async (rawBody, signature) => {
         where: { id: payment.id },
         data: { status: PAYMENT_STATUS.FAILED, razorpayPaymentId },
       });
-      await prisma.order.update({
+      const cancelledOrder = await prisma.order.update({
         where: { id: payment.orderId },
         data: { status: ORDER_STATUS.CANCELLED },
       });
+
+      // ── Stock restoration on webhook payment failure (grocery orders only) ─
+      if (cancelledOrder.storeId) {
+        await restoreStockForOrder(prisma, payment.orderId);
+      }
       break;
     }
     case 'refund.created':
@@ -202,30 +246,67 @@ const handleWebhook = async (rawBody, signature) => {
 
 // ─── Refund ───────────────────────────────────────────────────────────────────
 
-const refund = async ({ paymentId, userId }) => {
+const processRefund = async (orderId, amount) => {
   const payment = await prisma.payment.findUnique({
-    where: { id: paymentId },
-    include: { order: true },
+    where:{ orderId }
   });
 
-  if (!payment) throw new AppError(404, 'PAYMENT_NOT_FOUND', 'Payment not found');
-  if (payment.order.userId !== userId) throw new AppError(403, 'FORBIDDEN', 'You can only refund your own payment');
-  if (payment.status !== PAYMENT_STATUS.SUCCESS) throw new AppError(400, 'PAYMENT_NOT_PAID', 'Refund allowed only when payment status is SUCCESS');
-  if (payment.order.status !== ORDER_STATUS.CANCELLED) throw new AppError(400, 'ORDER_NOT_CANCELLED', 'Refund allowed only when order status is CANCELLED');
+  if(!payment){
+    throw new AppError(404, 'PAYMENT_NOT_FOUND', 'Payment not found');
+  }
 
-  // Initiate Razorpay refund if configured
+  if(payment.status !== PAYMENT_STATUS.SUCCESS){
+    throw new AppError(400, 'INVALID_PAYMENT', 'Only successful payments can be refunded');
+  }
+
   const razorpay = getRazorpay();
-  if (razorpay && payment.razorpayPaymentId) {
+
+  if(razorpay && payment.razorpayPaymentId){
     await razorpay.payments.refund(payment.razorpayPaymentId, {
-      amount: Math.round(payment.amount * 100),
-      notes: { reason: 'Order cancelled' },
+      amount: Math.round(amount * 100)
     });
   }
 
   return prisma.payment.update({
-    where: { id: paymentId },
-    data: { status: PAYMENT_STATUS.REFUNDED },
+    where:{ id: payment.id },
+    data:{ status: PAYMENT_STATUS.REFUNDED }
   });
 };
 
-module.exports = { createPayment, verifyPayment, handleWebhook, refund };
+const getPaymentHistory = (userId, filters = {}) =>
+  prisma.payment.findMany({
+   where: {
+  order: { userId },
+  ...(filters.status && { status: filters.status }),
+  ...(filters.method && { method: filters.method }),
+},
+    include: { order: { select: { id: true, status: true } } },
+    orderBy: { createdAt: "desc" },
+  });
+
+const getSellerPaymentHistory = (ownerId, filters = {}) =>
+  prisma.payment.findMany({
+    where: {
+      OR: [
+        { order: { restaurant: { ownerId } } },
+        { order: { store: { ownerId } } },
+      ],
+      ...(filters.status && { status: filters.status }),
+      ...(filters.method && { method: filters.method }),
+    },
+    include: { order: true },
+    orderBy: { createdAt: "desc" },
+  });
+
+  const getPaymentStats = async () => {
+  const [total, success, failed, pending] = await Promise.all([
+    prisma.payment.count(),
+    prisma.payment.count({ where: { status: PAYMENT_STATUS.SUCCESS } }),
+    prisma.payment.count({ where: { status: PAYMENT_STATUS.FAILED } }),
+    prisma.payment.count({ where: { status: PAYMENT_STATUS.PENDING } }),
+  ]);
+
+  return { total, success, failed, pending };
+};
+
+  module.exports = { createPayment, verifyPayment, handleWebhook, processRefund, getPaymentHistory, getSellerPaymentHistory, getPaymentStats };

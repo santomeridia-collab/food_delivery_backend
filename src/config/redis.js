@@ -1,10 +1,24 @@
-const redisClient = {
-  incr: async () => 1,
-  expire: async () => true,
-  get: async () => null,
-  set: async () => "OK",
-  del: async () => 1,
-  ping: async () => "PONG",
-};
+const Redis = require("ioredis");
+const env = require("./env");
+
+const redisClient =
+  global.redisClient ||
+  new Redis(env.REDIS_URL, {
+    maxRetriesPerRequest: 1,
+    enableReadyCheck: false,
+    lazyConnect: true,
+  });
+
+redisClient.on("connect", () => {
+  console.log("Redis connected");
+});
+
+redisClient.on("error", (err) => {
+  console.error("Redis error:", err.message);
+});
+
+if (process.env.NODE_ENV !== "production") {
+  global.redisClient = redisClient;
+}
 
 module.exports = redisClient;

@@ -8,7 +8,9 @@ async function register(req, res, next) {
   try {
     const user = await service.register(req.body);
     return success(res, 'User registered successfully', user, 201);
-  } catch (err) { next(err); }
+  } catch (err) { 
+    console.error('Error in register controller:', err);
+    next(err); }
 }
 
 /** POST /auth/verify-otp */
@@ -46,7 +48,18 @@ async function verifyLoginOtp(req, res, next) {
 /** POST /auth/refresh */
 async function refresh(req, res, next) {
   try {
-    const tokens = await service.refresh({ refreshToken: req.body.refreshToken });
+    const refreshToken = req.body?.refreshToken;
+
+    if (!refreshToken) {
+      throw new AppError(
+        422,
+        "VALIDATION_ERROR",
+        "Refresh token is required"
+      );
+    }
+
+    const tokens = await service.refresh({ refreshToken });
+    
     return success(res, 'Token refreshed', tokens);
   } catch (err) { next(err); }
 }

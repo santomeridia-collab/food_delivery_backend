@@ -2,6 +2,10 @@
 
 const prisma = require('../../config/db');
 const AppError = require('../../common/utils/AppError');
+const orderService = require('../order/service');
+const paymentService = require('../payment/service');
+const REQUEST_STATUS = require("../../common/constants/OrderRequest")
+const REQUEST_TYPE = require("../../common/constants/requestType")
 
 /** List restaurants with optional category filter and pagination. */
 async function listRestaurants({ page = 1, limit = 20, category } = {}) {
@@ -150,8 +154,20 @@ async function updateMenuItem(restaurantId, itemId, ownerId, data) {
   return prisma.menuItem.update({ where: { id: itemId }, data });
 }
 
+
+/** Get a replace order request by ID. */
+async function getOrderRequest(replacementId, ownerId){
+  return orderService.getOrderRequestForOwner(replacementId, ownerId);
+}
+
+async function updateOrderRequest(replacementId, ownerId, status){
+  return orderService.updateOrderRequestForOwner(replacementId, ownerId, status);
+}
+
 module.exports = {
   listRestaurants, searchRestaurants, getSearchHistory, deleteSearchEntry,
   clearSearchHistory, getCategories, getBanners, getRestaurantDetails,
   addMenuItem, updateMenuItem,
+  getOrderRequest,
+  updateOrderRequest,
 };

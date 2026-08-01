@@ -15,7 +15,7 @@ async function getDashboard(req, res, next) {
 /** POST /delivery/online */
 async function goOnline(req, res, next) {
   try {
-    const result = await service.goOnline(req.user.id);
+    const result = await service.goOnline(req.user?.id);
     return success(res, result.message, result.session || null);
   } catch (err) { next(err); }
 }
@@ -23,7 +23,7 @@ async function goOnline(req, res, next) {
 /** POST /delivery/offline */
 async function goOffline(req, res, next) {
   try {
-    const result = await service.goOffline(req.user.id);
+    const result = await service.goOffline(req.user?.id);
     return success(res, result.message, result.session || null);
   } catch (err) { next(err); }
 }

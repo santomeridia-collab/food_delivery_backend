@@ -12,18 +12,39 @@ const createPayment = async (req, res, next) => {
 
 const verifyPayment = async (req, res, next) => {
   try {
-    const result = await paymentService.verifyPayment({ ...req.body, userId: req.user.id });
+    const io = req.app.get('io');
+    const result = await paymentService.verifyPayment({ ...req.body, userId: req.user.id }, io);
     return success(res, 'Payment verified', result);
   } catch (err) { next(err); }
 };
 
-const refund = async (req, res, next) => {
+// Get payment history for the logged-in user
+const paymentHistory = async (req, res, next) => {
   try {
-    const payment = await paymentService.refund({ paymentId: req.params.id, userId: req.user.id });
-    return success(res, 'Refund processed', payment);
-  } catch (err) { next(err); }
+    const result = await paymentService.getPaymentHistory(req.user.id, req.query);
+    return success(res, "Payment history fetched", result);
+  } catch (err) {
+    next(err);
+  }
+};
+ 
+const sellerPaymentHistory = async (req, res, next) => {
+  try {
+    const payments = await paymentService.getSellerPaymentHistory(req.user.id, req.query);
+    return res.status(200).json({ success: true, data: payments });
+  } catch (err) {
+    next(err);
+  }
 };
 
+const paymentStats = async (req, res, next) => {
+  try {
+    const stats = await paymentService.getPaymentStats();
+    return res.status(200).json({ success: true, data: stats });
+  } catch (err) {
+    next(err);
+  }
+};
 /**
  * POST /api/payments/webhook
  * Razorpay sends raw body — must be parsed with express.raw() before this handler.
@@ -33,9 +54,10 @@ const webhook = async (req, res, next) => {
     const signature = req.headers['x-razorpay-signature'];
     if (!signature) return res.status(400).json({ success: false, message: 'Missing signature header' });
 
-    const result = await paymentService.handleWebhook(req.body, signature);
+    const io = req.app.get('io');
+    const result = await paymentService.handleWebhook(req.body, signature, io);
     return res.status(200).json({ success: true, ...result });
   } catch (err) { next(err); }
 };
 
-module.exports = { createPayment, verifyPayment, refund, webhook };
+module.exports = { createPayment, verifyPayment, webhook, paymentHistory, sellerPaymentHistory, paymentStats };

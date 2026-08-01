@@ -68,6 +68,15 @@ async function getDashboard(agentId) {
   const weekOnlineMinutes = weekSessions.reduce((s, sess) => s + (sess.durationMinutes || 0), 0);
   const monthOnlineMinutes = monthSessions.reduce((s, sess) => s + (sess.durationMinutes || 0), 0);
 
+  // todayOnlineMinutes (onlineHours.today)
+  const todaySessions = sessions.filter(
+    s => s.goOnlineAt >= startOfToday()
+  );
+
+  const todayOnlineMinutes = todaySessions.reduce(
+    (sum, session) => sum + (session.durationMinutes || 0), 0
+  );
+
   // Check if currently online (open session)
   const openSession = await prisma.agentSession.findFirst({
     where: { agentId, goOfflineAt: null },
@@ -100,6 +109,8 @@ async function getDashboard(agentId) {
     onlineHours: {
       totalMinutes: totalOnlineMinutes,
       totalHours: +(totalOnlineMinutes / 60).toFixed(2),
+      todayMinutes: todayOnlineMinutes,
+      todayHours: +(todayOnlineMinutes / 60).toFixed(2),
       thisWeekMinutes: weekOnlineMinutes,
       thisMonthMinutes: monthOnlineMinutes,
     },
@@ -110,13 +121,19 @@ async function getDashboard(agentId) {
 // ─── Online / Offline toggle ──────────────────────────────────────────────────
 
 async function goOnline(agentId) {
+  if (!agentId) {
+    throw new AppError(400, 'BAD_REQUEST', 'Agent ID is required');
+  }
   const open = await prisma.agentSession.findFirst({ where: { agentId, goOfflineAt: null } });
   if (open) return { message: 'Already online', session: open };
-  const session = await prisma.agentSession.create({ data: { agentId } });
+  const session = await prisma.agentSession.create({ data: { agentId, goOnlineAt:null } });
   return { message: 'You are now online', session };
 }
 
 async function goOffline(agentId) {
+  if (!agentId) {
+    throw new AppError(400, 'BAD_REQUEST', 'Agent ID is required');
+  }
   const open = await prisma.agentSession.findFirst({ where: { agentId, goOfflineAt: null } });
   if (!open) return { message: 'Already offline' };
 
@@ -139,6 +156,7 @@ async function getAvailableOrders({ page = 1, limit = 20 } = {}) {
       orderBy: { createdAt: 'desc' },
       include: {
         restaurant: { select: { id: true, name: true, address: true } },
+        store: { select: { id: true, name: true, address: true } },
         user: { select: { name: true } },
         items: true,
       },
@@ -149,6 +167,8 @@ async function getAvailableOrders({ page = 1, limit = 20 } = {}) {
   const enriched = orders.map((o) => ({
     ...o,
     customerName: o.user?.name || 'Customer',
+    pickupName: o.restaurant?.name || o.store?.name,
+    pickupAddress: o.restaurant?.address || o.store?.address,
     itemCount: o.items.length,
     deliveryFee: DELIVERY_FEE,
   }));
@@ -163,6 +183,7 @@ async function getActiveDelivery(agentId) {
       order: {
         include: {
           restaurant: { select: { id: true, name: true, address: true } },
+          store: { select: { id: true, name: true, address: true } },
           user: { select: { name: true } },
           items: { include: { menuItem: { select: { name: true, price: true } } } },
         },
@@ -175,7 +196,10 @@ async function getActiveDelivery(agentId) {
     ...tracking,
     customerName: tracking.order.user?.name || 'Customer',
     customerAddress: tracking.order.deliveryAddress,
-    restaurantAddress: tracking.order.restaurant?.address,
+    restaurantAddress:
+      tracking.order.restaurant?.address || tracking.order.store?.address,
+    pickupName:
+      tracking.order.restaurant?.name || tracking.order.store?.name,
   };
 }
 
@@ -186,7 +210,7 @@ async function getDeliveryHistory(agentId, { page = 1, limit = 20 } = {}) {
       where: { agentId, order: { status: ORDER_STATUS.DELIVERED } },
       skip, take: limit,
       orderBy: { completedAt: 'desc' },
-      include: { order: { include: { restaurant: { select: { id: true, name: true } } } } },
+      include: { order: { include: { restaurant: { select: { id: true, name: true } }, store: { select: { id: true, name: true } } } } },
     }),
     prisma.deliveryTracking.count({ where: { agentId, order: { status: ORDER_STATUS.DELIVERED } } }),
   ]);

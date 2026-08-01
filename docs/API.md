@@ -201,6 +201,61 @@ Update a menu item. Requires `restaurant_owner` role.
 ```json
 { "price": 11.99, "is_available": false }
 ```
+## Cart — `/api/cart`
+
+### GET /api/cart
+Get the current customer's cart. Requires `customer` role.
+
+**Response 200**
+```json
+{ "items": [], "total": 0, "restaurantId": null, "storeId": null }
+```
+
+---
+
+### POST /api/cart/items
+Add an item to the cart. Requires `customer` role.
+
+**Body**
+```json
+{ "item_id": 1, "store_type": "restaurant", "quantity": 2 }
+```
+
+**Response 200**
+```json
+{ "success": true, "data": { "items": [], "total": 19.98 } }
+```
+
+---
+
+### PATCH /api/cart/items/:itemId
+Update the quantity of a cart item. Requires `customer` role.
+
+**Body**
+```json
+{ "quantity": 3 }
+```
+
+**Response 200** — Updated cart returned.
+
+---
+
+### DELETE /api/cart/items/:itemId
+Remove a specific item from the cart. Requires `customer` role.
+
+**Response 200** — Updated cart returned.
+
+---
+
+### DELETE /api/cart
+Clear all items from the current customer's cart. Requires `customer` role.
+
+**Response 200**
+```json
+{ "success": true }
+```
+
+---
 
 ---
 
@@ -212,10 +267,14 @@ Create an order. Requires `customer` role.
 **Body**
 ```json
 {
-  "restaurant_id": 1,
+  "store_id": 1,
+  "store_type": "restaurant",
   "address_id": 1,
   "items": [
-    { "menu_item_id": 1, "quantity": 2 }
+    {
+      "item_id": 1,
+      "quantity": 2
+    }
   ]
 }
 ```
@@ -235,9 +294,61 @@ Get current customer's orders (paginated). Requires `customer` role.
 Cancel an order. Requires `customer` role. Only allowed from `pending` or `confirmed` status.
 
 ---
+### POST /api/orders/:id/request
+
+Create an order request. Requires `customer` role.
+
+**Body**
+```json
+{
+  "type": "REFUND",
+  "store_type": "restaurant",
+  "reason": "Food quality issue",
+  "image_url": "https://example.com/image.jpg",
+  "items": [
+    {
+      "item_id": "1",
+      "quantity": 1
+    }
+  ]
+}
+```
+
+**Response 201** – Order request created
+
+### GET /api/orders/requests/:id
+
+Get an order request. Requires `restaurant_owner` or `seller` role.
+
+**Response 200**
+
+```json
+{
+  "success": true,
+  "message": "Order request retrieved"
+}
+```
+
+---
+
+### PATCH /api/orders/requests/:id
+
+Update an order request. Requires `restaurant_owner` or `seller` role.
+
+**Body**
+
+```json
+{
+  "status": "ACCEPTED"
+}
+```
+
+**Response 200**
+
+Order request updated.
 
 ### PATCH /api/orders/:id/status
-Update order status. Requires `restaurant_owner` or `delivery` role.
+Update order status. Requires `restaurant_owner`, `seller`, or `delivery` role.
 
 **Body**
 ```json

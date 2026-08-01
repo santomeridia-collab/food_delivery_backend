@@ -3,67 +3,185 @@
 const prisma = require('../../config/db');
 const AppError = require('../../common/utils/AppError');
 const ORDER_STATUS = require('../../common/constants/orderStatus');
+const notificationService = require('../notification/service');
+const REQUEST_STATUS = require('../../common/constants/OrderRequest');
+const REQUEST_TYPE = require("../../common/constants/requestType");
+const { deductStock, restoreStockForOrder } = require('../../common/utils/stockUtils');
+const { restoreStock } = require('../../common/utils/stockUtils');
+const paymentService = require('../payment/service');
+const { clearCart } = require("../cart/service"); // Cart service
 
 const VALID_TRANSITIONS = {
-  [ORDER_STATUS.PENDING]:          [ORDER_STATUS.CONFIRMED, ORDER_STATUS.CANCELLED],
-  [ORDER_STATUS.CONFIRMED]:        [ORDER_STATUS.PREPARING, ORDER_STATUS.CANCELLED],
-  [ORDER_STATUS.PREPARING]:        [ORDER_STATUS.OUT_FOR_DELIVERY],
+  [ORDER_STATUS.PENDING]: [ORDER_STATUS.CONFIRMED, ORDER_STATUS.CANCELLED],
+  [ORDER_STATUS.CONFIRMED]: [ORDER_STATUS.PREPARING, ORDER_STATUS.CANCELLED],
+  [ORDER_STATUS.PREPARING]: [ORDER_STATUS.OUT_FOR_DELIVERY],
   [ORDER_STATUS.OUT_FOR_DELIVERY]: [ORDER_STATUS.DELIVERED],
-  [ORDER_STATUS.DELIVERED]:        [],
-  [ORDER_STATUS.CANCELLED]:        [],
+  [ORDER_STATUS.DELIVERED]: [],
+  [ORDER_STATUS.CANCELLED]: [],
 };
 
 const CANCELLABLE_STATUSES = [ORDER_STATUS.PENDING, ORDER_STATUS.CONFIRMED];
 
 /**
- * Create a new order.
+ * Create a new order for a customer.
+ * Supports both restaurants and grocery stores by validating items against the respective store.
+ *
+ * @param {string} customerId - The ID of the customer placing the order.
+ * @param {Object} payload - The order payload.
+ * @param {string} payload.store_id - The ID of the store or restaurant.
+ * @param {string} [payload.address_id] - The ID of the saved address to deliver to.
+ * @param {Array} payload.items - Array of items to order [{ item_id, quantity }].
+ * @param {string} payload.store_type - The type of store ('restaurant' or 'grocery').
+ * @param {Object} [additionalData=null] - Optional additional data for address or free replacement overrides.
+ * @returns {Promise<Object>} The newly created order record.
+ * @throws {AppError} If the address is invalid or items do not belong to the store.
  */
-async function createOrder(customerId, { restaurant_id, address_id, items }) {
-  const menuItemIds = items.map((i) => i.menu_item_id);
+async function createOrder(customerId, { store_id, address_id, items, store_type }, additionalData = null) {
+  const itemIds = items.map((i) => i.item_id);
+
+  let address;
+  if (address_id) {
+    address = await prisma.address.findUnique({ where: { id: address_id } });
+    if (!address || address.userId !== customerId) {
+      throw new AppError(400, 'INVALID_ADDRESS', 'Address does not belong to the customer');
+    }
+  }
+
+  if (!address && additionalData?.addressLine) {
+    address = additionalData;
+  }
+
+  // Prevent duplicate active orders from the same store
+const existingOrder=await prisma.order.findFirst({
+  where:{userId:customerId,status:{in:[ORDER_STATUS.PENDING,ORDER_STATUS.CONFIRMED,ORDER_STATUS.PREPARING,ORDER_STATUS.OUT_FOR_DELIVERY]},...(store_type==="restaurant"?{restaurantId:store_id}:{storeId:store_id})}
+});
+
+if(existingOrder) throw new AppError(400,"ORDER_ALREADY_EXISTS","You already have an active order from this store.");
+
+  let menuItems;
+  if (store_type == "restaurant") {
+    menuItems = await prisma.menuItem.findMany({
+      where: { id: { in: itemIds }, restaurantId: store_id },
+    });
+  } else if (store_type == "grocery") {
+    menuItems = await prisma.groceryProduct.findMany({
+      where: { id: { in: itemIds }, storeId: store_id },
+    });
+  }
+
+  // Grocery stock & availability validation
+  if (store_type === "grocery") {
+    const productMap = Object.fromEntries(
+      menuItems.map(product => [product.id, product])
+    );
+
+    for (const item of items) {
+      const product = productMap[item.item_id];
+
+      if (!product.isAvailable) {
+        throw new AppError(
+          400,
+          "PRODUCT_UNAVAILABLE",
+          `${product.name} is currently unavailable`
+        );
+      }
+
+      if (item.quantity > product.stock) {
+        throw new AppError(
+          400,
+          "INSUFFICIENT_STOCK",
+          `Only ${product.stock} unit(s) of ${product.name} are available`
+        );
+      }
+    }
+  }
 
   // Fetch all requested menu items that belong to the restaurant
-  const menuItems = await prisma.menuItem.findMany({
-    where: { id: { in: menuItemIds }, restaurantId: restaurant_id },
-  });
 
-  if (menuItems.length !== menuItemIds.length) {
-    throw new AppError(400, 'INVALID_ITEMS', 'One or more items do not belong to the specified restaurant');
+  if (menuItems.length !== itemIds.length) {
+    throw new AppError(400, 'INVALID_ITEMS', 'One or more items do not belong to the specified store');
   }
 
   const priceMap = Object.fromEntries(menuItems.map((m) => [m.id, m.price]));
-  const total = items.reduce((sum, item) => sum + priceMap[item.menu_item_id] * item.quantity, 0);
+  const total = additionalData?.freeReplacement ? 0 : items.reduce((sum, item) => sum + priceMap[item.item_id] * item.quantity, 0);
+
+  const deliveryAddress = address.addressLine ?? `${address.line1} ${address.line2 ?? ''} ${address.city ?? ''} ${address.state ?? ''} ${address.pincode ?? ''}`;
+
+  const orderBody = {
+    userId: customerId,
+    status: ORDER_STATUS.PENDING,
+    totalAmount: total,
+    deliveryAddress,
+    deliveryLat: address.latitude,
+    deliveryLng: address.longitude,
+  }
+  if (store_type == "restaurant") {
+    orderBody.restaurantId = store_id;
+  } else if (store_type == "grocery") {
+    orderBody.storeId = store_id;
+  }
+  let itemList = {}
+  if (store_type == "restaurant") {
+    itemList = {
+      create: items.map((item) => ({
+        menuItemId: item.item_id,
+        quantity: item.quantity,
+        price: priceMap[item.item_id],
+      }))
+    }
+  } else if (store_type == "grocery") {
+    itemList = {
+      create: items.map((item) => ({
+        groceryProductId: item.item_id,
+        quantity: item.quantity,
+        price: priceMap[item.item_id],
+      }))
+    }
+  }
 
   const order = await prisma.order.create({
-    data: {
-      userId: customerId,
-      restaurantId: restaurant_id,
-      status: ORDER_STATUS.PENDING,
-      totalAmount: total,
-      items: {
-        create: items.map((item) => ({
-          menuItemId: item.menu_item_id,
-          quantity: item.quantity,
-          price: priceMap[item.menu_item_id],
-        })),
-      },
-    },
+    data: { ...orderBody, items: itemList },
     include: { items: true },
   });
 
+  // ── Stock deduction (grocery orders only) ─────────────────────────────────
+  // Atomically decrement stock and soldCount for each grocery product.
+  // auto-toggles isAvailable to false if stock reaches 0.
+  if (store_type === 'grocery') {
+    await deductStock(prisma, items);
+  }
+// Clear the user's cart after a successful order
+ await clearCart(customerId);
   return order;
 }
 
 /**
- * Cancel an order. Only allowed from PENDING or CONFIRMED statuses.
+ * Cancel an order. 
+ * Can only be cancelled if the order is currently in a PENDING or CONFIRMED status.
+ *
+ * @param {string} orderId - The ID of the order to cancel.
+ * @param {string} customerId - The ID of the customer who owns the order.
+ * @returns {Promise<Object>} The updated order record.
+ * @throws {AppError} 404 if not found, 403 if unauthorized, 400 if the order is in an uncancellable state.
  */
 async function cancelOrder(orderId, customerId) {
-  const order = await prisma.order.findUnique({ where: { id: orderId } });
+  const order = await prisma.order.findUnique({ where: { id: orderId }, include: { payment: true } });
   if (!order) throw new AppError(404, 'NOT_FOUND', 'Order not found');
   if (order.userId !== customerId) throw new AppError(403, 'FORBIDDEN', 'You do not own this order');
 
   if (!CANCELLABLE_STATUSES.includes(order.status)) {
     throw new AppError(400, 'INVALID_STATUS', `Order cannot be cancelled in status: ${order.status}`);
   }
+
+  // ── Stock restoration (grocery orders only) ───────────────────────────────
+  // Restore stock for every grocery product in this order before cancelling.
+  // Also re-enables isAvailable for products that were auto-disabled.
+  if (order.storeId) {
+    await restoreStockForOrder(prisma, orderId);
+  }
+
+  if (order.payment?.status === 'SUCCESS')
+    throw new AppError(400, 'INVALID_STATUS', 'Paid orders cannot be cancelled');
 
   return prisma.order.update({
     where: { id: orderId },
@@ -72,11 +190,18 @@ async function cancelOrder(orderId, customerId) {
 }
 
 /**
- * Get paginated orders scoped to the requesting customer.
- * tab: 'active' returns pending/confirmed/preparing/out_for_delivery
- * tab: 'past' returns delivered/cancelled
+ * Retrieve a paginated list of orders for a specific customer.
+ * Can be filtered by active/past tabs and the type of store (restaurant/grocery).
+ *
+ * @param {string} customerId - The ID of the customer.
+ * @param {Object} options - Query options.
+ * @param {number} [options.page=1] - The page number for pagination.
+ * @param {number} [options.limit=20] - The number of records per page.
+ * @param {string} [options.tab] - Filter by 'active' or 'past' statuses.
+ * @param {string} [options.type] - Filter by store type ('restaurant' or 'grocery') to include specific relation details.
+ * @returns {Promise<Object>} An object containing the orders array, total count, page, and limit.
  */
-async function getOrders(customerId, { page = 1, limit = 20, tab } = {}) {
+async function getOrders(customerId, { page = 1, limit = 20, tab, type } = {}) {
   const skip = (page - 1) * limit;
 
   const ACTIVE_STATUSES = [ORDER_STATUS.PENDING, ORDER_STATUS.CONFIRMED, ORDER_STATUS.PREPARING, ORDER_STATUS.OUT_FOR_DELIVERY];
@@ -86,16 +211,26 @@ async function getOrders(customerId, { page = 1, limit = 20, tab } = {}) {
   if (tab === 'active') where.status = { in: ACTIVE_STATUSES };
   else if (tab === 'past') where.status = { in: PAST_STATUSES };
 
+  let orderBody = {}
+  if (type == 'restaurant') {
+    orderBody.include = {
+      items: { include: { menuItem: { select: { name: true, imageUrl: true } } } },
+      restaurant: { select: { id: true, name: true, imageUrl: true } },
+    }
+  } else if (type == 'grocery') {
+    orderBody.include = {
+      items: { include: { groceryProduct: { select: { name: true, imageUrl: true } } } },
+      store: { select: { id: true, name: true, imageUrl: true } },
+    }
+  }
+
   const [orders, total] = await Promise.all([
     prisma.order.findMany({
       where,
       skip,
       take: limit,
       orderBy: { createdAt: 'desc' },
-      include: {
-        items: { include: { menuItem: { select: { name: true, imageUrl: true } } } },
-        restaurant: { select: { id: true, name: true, imageUrl: true } },
-      },
+      ...orderBody
     }),
     prisma.order.count({ where }),
   ]);
@@ -103,16 +238,69 @@ async function getOrders(customerId, { page = 1, limit = 20, tab } = {}) {
 }
 
 /**
- * Update order status with state machine validation.
- * Also emits socket events: order_status_update to customer, new_delivery_request to delivery_agents on CONFIRMED.
+ * Safely update the status of an order using strict state machine validation.
+ * Automatically broadcasts socket events to relevant parties (customers, delivery agents).
+ *
+ * @param {string} orderId - The ID of the order to update.
+ * @param {string} newStatus - The new status to transition to.
+ * @param {Object} [io] - The Socket.io instance for emitting real-time events.
+ * @returns {Promise<Object>} The updated order record.
+ * @throws {AppError} 404 if not found, 400 if the transition is invalid based on VALID_TRANSITIONS.
  */
-async function updateOrderStatus(orderId, newStatus, io) {
-  const order = await prisma.order.findUnique({ where: { id: orderId } });
-  if (!order) throw new AppError(404, 'NOT_FOUND', 'Order not found');
+async function updateOrderStatus(orderId, newStatus, user, io) {
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    include: {
+      restaurant: true,
+      store: true,
+      tracking: true,
+    },
+  });
+
+  if (!order) {
+    throw new AppError(
+      404,
+      "NOT_FOUND",
+      "Order not found"
+    );
+  }
+
+  // Restaurant owner can update only their own restaurant orders
+  if (user.role === "restaurant_owner") {
+    if (
+      !order.restaurant ||
+      order.restaurant.ownerId !== user.id
+    ) {
+      throw new AppError(
+        403,
+        "FORBIDDEN",
+        "You are not authorized to update this order"
+      );
+    }
+  }
+
+  // Grocery seller can update only their own grocery orders
+  if (user.role === "seller") {
+    if (
+      !order.store ||
+      order.store.ownerId !== user.id
+    ) {
+      throw new AppError(
+        403,
+        "FORBIDDEN",
+        "You are not authorized to update this order"
+      );
+    }
+  }
 
   const allowed = VALID_TRANSITIONS[order.status] || [];
+
   if (!allowed.includes(newStatus)) {
-    throw new AppError(400, 'INVALID_TRANSITION', `Cannot transition from ${order.status} to ${newStatus}`);
+    throw new AppError(
+      400,
+      "INVALID_TRANSITION",
+      `Cannot transition from ${order.status} to ${newStatus}`
+    );
   }
 
   const updated = await prisma.order.update({
@@ -121,14 +309,13 @@ async function updateOrderStatus(orderId, newStatus, io) {
   });
 
   if (io) {
-    io.to(`user:${order.userId}`).emit('order_status_update', {
+    io.to(`user:${order.userId}`).emit("order_status_update", {
       order_id: orderId,
       status: newStatus,
     });
 
-    // Broadcast to all delivery agents when order is confirmed and ready for pickup
     if (newStatus === ORDER_STATUS.CONFIRMED) {
-      io.to('delivery_agents').emit('new_delivery_request', {
+      io.to("delivery_agents").emit("new_delivery_request", {
         order_id: orderId,
         status: newStatus,
       });
@@ -137,5 +324,379 @@ async function updateOrderStatus(orderId, newStatus, io) {
 
   return updated;
 }
+/**
+ * Submit a refund or replacement request for a delivered order.
+ * Validates the items against the store and sends notifications/socket events to the store owner.
+ *
+ * @param {string} orderId - The ID of the order being disputed.
+ * @param {string} customerId - The ID of the customer making the request.
+ * @param {Object} payload - The request details.
+ * @param {string} payload.type - The type of request ('refund' or 'replacement').
+ * @param {string} payload.store_type - The type of store ('restaurant' or 'grocery').
+ * @param {string} payload.reason - The reason for the request.
+ * @param {string} [payload.image_url] - Optional proof image URL.
+ * @param {Array} payload.items - Array of items to request action on [{ item_id, quantity }].
+ * @param {Object} [io] - The Socket.io instance for emitting real-time events to the seller.
+ * @returns {Promise<Object>} The newly created order request record.
+ * @throws {AppError} 400 if the store is closed, items are invalid, or the order isn't delivered yet.
+ */
 
-module.exports = { createOrder, cancelOrder, getOrders, updateOrderStatus };
+async function getOrderTracking(orderId, user) {
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    include: {
+      tracking: true,
+      restaurant: true,
+      store: true,
+    },
+  });
+
+  if (!order) {
+    throw new AppError(
+      404,
+      "NOT_FOUND",
+      "Order not found"
+    );
+  }
+
+  // Customer can only view their own orders
+  if (user.role === "customer") {
+    if (order.userId !== user.id) {
+      throw new AppError(
+        403,
+        "FORBIDDEN",
+        "You are not authorized to view this order"
+      );
+    }
+  }
+
+  // Restaurant owner can only view their restaurant's orders
+  if (user.role === "restaurant_owner") {
+    if (
+      !order.restaurant ||
+      order.restaurant.ownerId !== user.id
+    ) {
+      throw new AppError(
+        403,
+        "FORBIDDEN",
+        "You are not authorized to view this order"
+      );
+    }
+  }
+
+  // Grocery seller can only view their store's orders
+  if (user.role === "seller") {
+    if (
+      !order.store ||
+      order.store.ownerId !== user.id
+    ) {
+      throw new AppError(
+        403,
+        "FORBIDDEN",
+        "You are not authorized to view this order"
+      );
+    }
+  }
+
+  // Delivery agent can only view assigned orders
+  if (user.role === "delivery") {
+    if (
+      !order.tracking ||
+      order.tracking.agentId !== user.id
+    ) {
+      throw new AppError(
+        403,
+        "FORBIDDEN",
+        "You are not authorized to view this order"
+      );
+    }
+  }
+  return {
+    orderId: order.id,
+    status: order.status,
+    storeType: order.restaurant ? "restaurant" : "grocery",
+    storeName: order.restaurant
+      ? order.restaurant.name
+      : order.store.name,
+    tracking: order.tracking
+      ? {
+        id: order.tracking.id,
+        agentId: order.tracking.agentId,
+        riderName: order.tracking.riderName,
+        riderPhone: order.tracking.riderPhone,
+        currentLat: order.tracking.currentLat,
+        currentLng: order.tracking.currentLng,
+        earnings: order.tracking.earnings,
+        deliveryFee: order.tracking.deliveryFee,
+        distanceKm: order.tracking.distanceKm,
+        estimatedMinutes: order.tracking.estimatedMinutes,
+        completedAt: order.tracking.completedAt,
+        updatedAt: order.tracking.updatedAt,
+      }
+      : null,
+  };
+}
+
+async function createOrderRequest(orderId, customerId, { type, store_type, reason, image_url, items }, io) {
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    include: { items: true }
+  });
+
+  if (!order) throw new AppError(404, 'NOT_FOUND', 'Order not found');
+
+  if (order.userId !== customerId) {
+    throw new AppError(403, 'FORBIDDEN', 'You do not own this order');
+  }
+
+  if (order.status !== ORDER_STATUS.DELIVERED) {
+    throw new AppError(400, 'INVALID_STATUS', 'Only delivered orders can have refund/replacement requests');
+  }
+
+  let ownerId;
+  let sellerId;
+  if (store_type === 'restaurant') {
+    sellerId = order.restaurantId;
+    const restaurant = await prisma.restaurant.findUnique({ where: { id: sellerId } });
+    if (restaurant.isOpen === false) throw new AppError(400, 'RESTAURANT_CLOSED', 'Cannot create order request. The restaurant is closed');
+    ownerId = restaurant.ownerId;
+  } else if (store_type === 'grocery') {
+    sellerId = order.storeId;
+    const store = await prisma.store.findUnique({ where: { id: sellerId } });
+    if (store.isOpen === false) throw new AppError(400, 'STORE_CLOSED', 'Cannot create order request. The store is closed');
+    ownerId = store.ownerId;
+  }
+
+  const itemIds = items.map((item) => item.item_id);
+
+  let sellerItems;
+  if (store_type === 'restaurant') {
+    sellerItems = await prisma.menuItem.findMany({
+      where: { id: { in: itemIds }, restaurantId: sellerId }
+    });
+  } else if (store_type === 'grocery') {
+    sellerItems = await prisma.groceryProduct.findMany({
+      where: { id: { in: itemIds }, storeId: sellerId }
+    });
+  }
+
+  if (sellerItems.length !== itemIds.length) {
+    throw new AppError(400, 'INVALID_ITEMS', 'Invalid request items');
+  }
+
+  const priceMap = Object.fromEntries(sellerItems.map((item) => [item.id, item.price]));
+
+  const replaceOrderItems = items.map((item) => ({
+    itemId: item.item_id,
+    quantity: item.quantity,
+    price: priceMap[item.item_id]
+  }));
+
+  const refundAmount = type === REQUEST_TYPE.REFUND
+    ? replaceOrderItems.reduce((sum, item) => sum + (item.price * item.quantity), 0)
+    : null;
+
+  const replaceOrderRecord = await prisma.orderRequest.create({
+    data: {
+      orderId,
+      userId: customerId,
+      reason,
+      imageUrl: image_url,
+      oldItems: order.items,
+      newItems: replaceOrderItems,
+      refundAmount,
+      status: REQUEST_STATUS.PENDING,
+      type
+    }
+  });
+
+  const notification = {
+    title: 'New Order Request',
+    message: `A new ${type} request has been made for order #${orderId}.`,
+    type: 'order_request'
+  }
+
+  await notificationService.createNotification({ ...notification, userId: ownerId });
+
+  await notificationService.sendPushNotification({ ...notification, userId: ownerId });
+
+  if (io) {
+    io.to(`${store_type}:${sellerId}`).emit('order_request', {
+      order_id: orderId,
+      request_id: replaceOrderRecord.id,
+      reason,
+      image_url,
+      items: replaceOrderItems
+    });
+  }
+
+  return replaceOrderRecord;
+}
+
+/**
+ * Unified method to get an order request for an owner.
+ * Verifies ownership for both restaurant and grocery store orders.
+ * @param {string} requestId - The ID of the order request.
+ * @param {string} ownerId - The ID of the logged-in user (owner).
+ * @returns {Promise<Object>} The order request with owner verification.
+ * @throws {AppError} 404 if not found, 403 if unauthorized.
+ */
+async function getOrderRequestForOwner(requestId, ownerId) {
+  const orderRequest = await prisma.orderRequest.findUnique({
+    where: { id: requestId },
+    include: {
+      order: {
+        include: {
+          restaurant: true,
+          store: true,
+          user: {
+            select: { id: true, name: true, phone: true }
+          }
+        }
+      }
+    }
+  });
+
+  if (!orderRequest) {
+    throw new AppError(404, 'NOT_FOUND', 'Order request not found');
+  }
+
+  // Verify ownership: check if owner matches restaurant or store owner
+  const isRestaurantOrder = !!orderRequest.order.restaurant;
+  const isGroceryOrder = !!orderRequest.order.store;
+
+  if (isRestaurantOrder && orderRequest.order.restaurant.ownerId !== ownerId) {
+    throw new AppError(403, 'FORBIDDEN', 'You are not authorized to access this request');
+  }
+
+  if (isGroceryOrder && orderRequest.order.store.ownerId !== ownerId) {
+    throw new AppError(403, 'FORBIDDEN', 'You are not authorized to access this request');
+  }
+
+  return orderRequest;
+}
+
+/**
+ * Unified method to update an order request for an owner.
+ * Handles ACCEPTED (for replacement/refund) and REJECTED statuses for both store types.
+ * @param {string} requestId - The ID of the order request.
+ * @param {string} ownerId - The ID of the logged-in user (owner).
+ * @param {string} status - The new status (ACCEPTED or REJECTED).
+ * @returns {Promise<Object>} The updated order request or new replacement order.
+ * @throws {AppError} Various errors based on validation.
+ */
+async function updateOrderRequestForOwner(requestId, ownerId, status) {
+  const orderRequest = await getOrderRequestForOwner(requestId, ownerId);
+
+  const { order, type, userId, orderId, newItems, oldItems, refundAmount } = orderRequest;
+  const storeType = order.storeId ? 'grocery' : 'restaurant';
+
+  if (status === REQUEST_STATUS.ACCEPTED && type === REQUEST_TYPE.REPLACE) {
+    // Create a new replacement order
+    const storeId = order.storeId || order.restaurantId;
+
+    const newOrder = await createOrder(
+      userId,
+      {
+        store_id: storeId,
+        store_type: storeType,
+        items: newItems.map((item) => ({
+          item_id: item.itemId || item.menuItemId || item.groceryProductId,
+          quantity: item.quantity
+        }))
+      },
+      {
+        addressLine: order.deliveryAddress,
+        latitude: order.deliveryLat,
+        longitude: order.deliveryLng,
+        freeReplacement: true
+      }
+    );
+
+    // Restore stock for replaced items (grocery only)
+    if (storeType === 'grocery' && oldItems) {
+      const itemsToRestore = oldItems
+        .filter((item) => item.groceryProductId)
+        .map((item) => ({
+          item_id: item.groceryProductId,
+          quantity: item.quantity
+        }));
+
+      if (itemsToRestore.length > 0) {
+        await restoreStock(prisma, itemsToRestore);
+      }
+    }
+
+    // Update request status
+    await prisma.orderRequest.update({
+      where: { id: requestId },
+      data: { status: REQUEST_STATUS.ACCEPTED }
+    });
+
+    return newOrder;
+  }
+
+  if (status === REQUEST_STATUS.ACCEPTED && type === REQUEST_TYPE.REFUND) {
+    // Process refund
+    await paymentService.processRefund(orderId, refundAmount);
+
+    // Restore stock for refunded items (grocery only)
+    if (storeType === 'grocery') {
+      const itemsToUse = (newItems && newItems.length > 0) ? newItems : (oldItems || []);
+
+      const itemsToRestore = itemsToUse
+        .filter((item) => item.itemId || item.groceryProductId)
+        .map((item) => ({
+          item_id: item.itemId || item.groceryProductId,
+          quantity: item.quantity
+        }));
+
+      if (itemsToRestore.length > 0) {
+        await restoreStock(prisma, itemsToRestore);
+      }
+    }
+
+    // Update request status
+    return prisma.orderRequest.update({
+      where: { id: requestId },
+      data: { status: REQUEST_STATUS.ACCEPTED }
+    });
+  }
+
+  if (status === REQUEST_STATUS.REJECTED) {
+    // Notify customer of rejection
+    const notificationBody = {
+      title: `${type} Request Rejected`,
+      message: `Your ${type} request for order #${orderId} has been rejected.`,
+      type: 'ORDER_REQUEST_REJECTED'
+    };
+
+    // Add contact info if restaurant
+    if (storeType === 'restaurant' && order.restaurant) {
+      notificationBody.message = `${notificationBody.message} You can contact the restaurant at ${order.restaurant.phone} for more details.`;
+    }
+
+    await notificationService.createNotification({
+      userId,
+      ...notificationBody,
+      isRead: false
+    });
+
+    await notificationService.sendPushNotification({
+      userId,
+      ...notificationBody
+    });
+
+    return prisma.orderRequest.update({
+      where: { id: requestId },
+      data: { status: REQUEST_STATUS.REJECTED }
+    });
+  }
+
+  throw new AppError(400, 'INVALID_STATUS', `Invalid order request status: ${status}`);
+}
+
+module.exports = {
+  createOrder, cancelOrder, getOrders, updateOrderStatus, createOrderRequest, getOrderTracking,
+  getOrderRequestForOwner, updateOrderRequestForOwner
+};

@@ -14,6 +14,7 @@ model User {
   email       String?  @unique
   password    String?
   role        String
+  approvalStatus String?
   is_verified Boolean  @default(false)
   status      String   @default("active")
   createdAt   DateTime @default(now())
@@ -84,20 +85,20 @@ model Restaurant {
 }
 
 model MenuItem {
-  id           String   @id @default(auto()) @map("_id") @db.ObjectId
-  restaurantId String   @db.ObjectId
-  name         String
-  description  String?
-  price        Float
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  restaurantId  String   @db.ObjectId
+  name          String
+  description   String?
+  price         Float
   originalPrice Float?
-  category     String?
-  imageUrl     String?
-  prepTimeMin  Int?
-  rating       Float    @default(0)
-  soldCount    Int      @default(0)
-  isAvailable  Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  category      String?
+  imageUrl      String?
+  prepTimeMin   Int?
+  rating        Float    @default(0)
+  soldCount     Int      @default(0)
+  isAvailable   Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   restaurant Restaurant  @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   orderItems OrderItem[]
@@ -108,7 +109,8 @@ model Order {
   id              String   @id @default(auto()) @map("_id") @db.ObjectId
   orderNumber     String?
   userId          String   @db.ObjectId
-  restaurantId    String   @db.ObjectId
+  restaurantId    String?  @db.ObjectId
+  storeId         String?  @db.ObjectId
   status          String
   totalAmount     Float
   deliveryAddress String?
@@ -118,70 +120,74 @@ model Order {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  user       User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  restaurant Restaurant        @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  items      OrderItem[]
-  payment    Payment?
-  tracking   DeliveryTracking?
+  user          User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  restaurant    Restaurant?       @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  store         Store?            @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  items         OrderItem[]
+  payment       Payment?
+  tracking      DeliveryTracking?
+  orderRequests OrderRequest[]
 }
 
 model OrderItem {
-  id         String @id @default(auto()) @map("_id") @db.ObjectId
-  orderId    String @db.ObjectId
-  menuItemId String @db.ObjectId
-  quantity   Int
-  price      Float
+  id               String  @id @default(auto()) @map("_id") @db.ObjectId
+  orderId          String  @db.ObjectId
+  menuItemId       String? @db.ObjectId
+  groceryProductId String? @db.ObjectId
+  quantity         Int
+  price            Float
 
-  order    Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  menuItem MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  order          Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menuItem       MenuItem?       @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  groceryProduct GroceryProduct? @relation(fields: [groceryProductId], references: [id], onDelete: Cascade)
 }
 
 model Payment {
-  id               String   @id @default(auto()) @map("_id") @db.ObjectId
-  orderId          String   @unique @db.ObjectId
-  amount           Float
-  status           String
-  method           String?
-  reference        String   @unique
-  razorpayOrderId  String?
+  id                String   @id @default(auto()) @map("_id") @db.ObjectId
+  orderId           String   @unique @db.ObjectId
+  amount            Float
+  status            String
+  method            String?
+  reference         String   @unique
+  razorpayOrderId   String?
   razorpayPaymentId String?
   razorpaySignature String?
-  createdAt        DateTime @default(now())
+  createdAt         DateTime @default(now())
 
   order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
 }
 
 model DeliveryTracking {
-  id              String    @id @default(auto()) @map("_id") @db.ObjectId
-  orderId         String    @unique @db.ObjectId
-  agentId         String?   @db.ObjectId
-  riderName       String?
-  riderPhone      String?
-  currentLat      Float?
-  currentLng      Float?
-  earnings        Float     @default(0)
-  deliveryFee     Float     @default(0)
-  distanceKm      Float?
+  id               String    @id @default(auto()) @map("_id") @db.ObjectId
+  orderId          String    @unique @db.ObjectId
+  agentId          String?   @db.ObjectId
+  riderName        String?
+  riderPhone       String?
+  currentLat       Float?
+  currentLng       Float?
+  earnings         Float     @default(0)
+  deliveryFee      Float     @default(0)
+  distanceKm       Float?
   estimatedMinutes Int?
-  completedAt     DateTime?
-  updatedAt       DateTime  @updatedAt
+  completedAt      DateTime?
+  updatedAt        DateTime  @updatedAt
 
   order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
 }
 
 model AgentSession {
-  id        String    @id @default(auto()) @map("_id") @db.ObjectId
-  agentId   String    @db.ObjectId
-  goOnlineAt  DateTime  @default(now())
-  goOfflineAt DateTime?
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  agentId         String    @db.ObjectId
+  goOnlineAt      DateTime  @default(now())
+  goOfflineAt     DateTime?
   durationMinutes Int?
-  createdAt DateTime  @default(now())
+  createdAt       DateTime  @default(now())
 }
 
 model AgentVehicle {
   id              String   @id @default(auto()) @map("_id") @db.ObjectId
   agentId         String   @unique @db.ObjectId
-  vehicleType     String   // Bike, Scooter, Car, etc.
+  vehicleType     String // Bike, Scooter, Car, etc.
   vehicleNumber   String
   vehicleModel    String
   vehicleColor    String
@@ -193,27 +199,27 @@ model AgentVehicle {
 }
 
 model AgentDocument {
-  id          String   @id @default(auto()) @map("_id") @db.ObjectId
-  agentId     String   @db.ObjectId
-  type        String   // driving_license | vehicle_registration | insurance_certificate | aadhar_card | pan_card
-  fileUrl     String?
-  status      String   @default("not_uploaded") // not_uploaded | pending | verified | rejected
-  expiryDate  String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  agentId    String   @db.ObjectId
+  type       String // driving_license | vehicle_registration | insurance_certificate | aadhar_card | pan_card
+  fileUrl    String?
+  status     String   @default("not_uploaded") // not_uploaded | pending | verified | rejected
+  expiryDate String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 }
 
 model AgentBankDetail {
-  id                  String   @id @default(auto()) @map("_id") @db.ObjectId
-  agentId             String   @unique @db.ObjectId
-  accountHolderName   String
-  bankName            String
-  accountNumber       String
-  ifscCode            String
-  upiId               String?
-  isVerified          Boolean  @default(false)
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  id                String   @id @default(auto()) @map("_id") @db.ObjectId
+  agentId           String   @unique @db.ObjectId
+  accountHolderName String
+  bankName          String
+  accountNumber     String
+  ifscCode          String
+  upiId             String?
+  isVerified        Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 }
 
 model Notification {
@@ -251,7 +257,7 @@ model Banner {
   id        String   @id @default(auto()) @map("_id") @db.ObjectId
   imageUrl  String
   title     String?
-  linkType  String?  // restaurant | category | url
+  linkType  String? // restaurant | category | url
   linkValue String?
   isActive  Boolean  @default(true)
   sortOrder Int      @default(0)
@@ -259,20 +265,20 @@ model Banner {
 }
 
 model Wallet {
-  id        String          @id @default(auto()) @map("_id") @db.ObjectId
-  userId    String          @unique @db.ObjectId
-  balance   Float           @default(0)
-  createdAt DateTime        @default(now())
-  updatedAt DateTime        @updatedAt
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @unique @db.ObjectId
+  balance   Float    @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   transactions WalletTransaction[]
 }
 
 model WalletTransaction {
   id          String   @id @default(auto()) @map("_id") @db.ObjectId
   walletId    String   @db.ObjectId
-  type        String   // credit | debit
+  type        String // credit | debit
   amount      Float
   description String?
   createdAt   DateTime @default(now())
@@ -281,24 +287,122 @@ model WalletTransaction {
 }
 
 model Cart {
-  id           String     @id @default(auto()) @map("_id") @db.ObjectId
-  userId       String     @unique @db.ObjectId
-  restaurantId String?    @db.ObjectId
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId       String   @unique @db.ObjectId
+  restaurantId String?  @db.ObjectId
+  storeId      String?  @db.ObjectId
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  user     User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  items    CartItem[]
+  user  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items CartItem[]
 }
 
 model CartItem {
   id         String   @id @default(auto()) @map("_id") @db.ObjectId
   cartId     String   @db.ObjectId
-  menuItemId String   @db.ObjectId
+  menuItemId String?  @db.ObjectId
+  groceryProductId String? @db.ObjectId
   quantity   Int
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
   cart     Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
-  menuItem MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  menuItem MenuItem? @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  groceryProduct GroceryProduct? @relation(fields: [groceryProductId], references: [id], onDelete: Cascade)
+}
+
+model OrderRequest {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+
+  // Relations
+  orderId String @db.ObjectId
+  userId  String @db.ObjectId
+
+  // refund | replacement
+  type String
+
+  // Customer complaint
+  reason   String
+  imageUrl String?
+
+  // Replacement specific
+  oldItems Json?
+  newItems Json?
+
+  // Refund specific
+  refundAmount     Float?
+  refundReference  String?
+  razorpayRefundId String?
+
+  // Restaurant decision
+  status String @default("pending")
+  // pending | approved | rejected | completed
+
+  sellerResponse String?
+  verifiedAt     DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+}
+
+// ─── Grocery / Multi-category Store Models ──────────────────────────────────
+// Follows a generic Seller → Store → Product architecture.
+// storeType allows extending to CLOTHING, ELECTRONICS, etc. in the future.
+
+model Store {
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  ownerId        String?  @db.ObjectId
+  storeType      String   @default("GROCERY") // GROCERY | CLOTHING | ELECTRONICS | OTHER
+  name           String
+  description    String?
+  address        String
+  email          String?
+  phone          String?
+  category       String? // e.g. "Supermarket", "Organic", "Pharmacy"
+  imageUrl       String?
+  bannerUrl      String?
+  rating         Float    @default(0)
+  ratingCount    Int      @default(0)
+  deliveryFee    Float    @default(0)
+  minOrderAmount Float    @default(0)
+  latitude       Float?
+  longitude      Float?
+  isOpen         Boolean  @default(true)
+  isFeatured     Boolean  @default(false)
+  offerTag       String?
+  approvalStatus String   @default("pending") // pending | approved | rejected
+  workingHours   Json?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  products GroceryProduct[]
+  orders   Order[]
+}
+
+model GroceryProduct {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  storeId       String   @db.ObjectId
+  name          String
+  description   String?
+  category      String?
+  brand         String?
+  price         Float
+  originalPrice Float?
+  unit          String? // ml | g | kg | pcs | L | etc.
+  quantity      Float? // numeric value of the unit (e.g. 500 for "500 ml")
+  imageUrl      String?
+  stock         Int      @default(0)
+  isAvailable   Boolean  @default(true)
+  rating        Float    @default(0)
+  ratingCount   Int      @default(0)
+  soldCount     Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  store      Store       @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  orderItems OrderItem[]
+  cartItems  CartItem[]
 }
