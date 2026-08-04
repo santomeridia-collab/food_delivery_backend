@@ -4133,3 +4133,94 @@ Inconsistent column data: Malformed ObjectID: provided hex string representation
 2026-08-01T02:11:38.943Z [INFO]: [otpCleanup] Scheduled to run every 10 minutes
 2026-08-01T02:11:49.197Z [INFO]: [jobs] Starting background jobs...
 2026-08-01T02:11:49.199Z [INFO]: [otpCleanup] Scheduled to run every 10 minutes
+2026-08-01T02:12:40.951Z [INFO]: [jobs] Starting background jobs...
+2026-08-01T02:12:40.954Z [INFO]: [otpCleanup] Scheduled to run every 10 minutes
+2026-08-03T04:53:53.269Z [INFO]: [jobs] Starting background jobs...
+2026-08-03T04:53:53.271Z [INFO]: [otpCleanup] Scheduled to run every 10 minutes
+2026-08-03T05:01:15.806Z [INFO]: [jobs] Starting background jobs...
+2026-08-03T05:01:15.808Z [INFO]: [otpCleanup] Scheduled to run every 10 minutes
+2026-08-03T05:02:20.814Z [INFO]: [jobs] Starting background jobs...
+2026-08-03T05:02:20.816Z [INFO]: [otpCleanup] Scheduled to run every 10 minutes
+2026-08-03T05:18:20.745Z [INFO]: [jobs] Starting background jobs...
+2026-08-03T05:18:20.748Z [INFO]: [otpCleanup] Scheduled to run every 10 minutes
+2026-08-03T05:18:39.866Z [INFO]: ✅ Login successful for user: 6a6c7c0ea4443d1fb5b775bc
+2026-08-03T05:18:39.910Z [INFO]: ✅ Tokens issued for user: 6a6c7c0ea4443d1fb5b775bc
+2026-08-03T05:20:23.132Z [ERROR]: PrismaClientValidationError: 
+Invalid `prisma.deliveryTracking.findFirst()` invocation in
+D:\delivery_app_backend\food_delivery_backend\src\modules\delivery\service.js:102:56
+
+   99 });
+  100 
+  101 // Active delivery
+→ 102 const activeTracking = await prisma.deliveryTracking.findFirst({
+        where: {
+          agentId: "6a6c7c0ea4443d1fb5b775bc",
+          order: {
+            status: "OUT_FOR_DELIVERY"
+          }
+        },
+        include: {
+          order: {
+            include: {
+              restaurant: {
+                select: {
+                  id: true,
+                  name: true,
+                  address: true
+                }
+              },
+              store: {
+              ~~~~~
+                select: {
+                  id: true,
+                  name: true,
+                  address: true
+                }
+              },
+              items: {
+                include: {
+                  menuItem: {
+                    select: {
+                      name: true,
+                      price: true
+                    }
+                  }
+                }
+              },
+              user: {
+                select: {
+                  name: true,
+                  phone: true
+                }
+              },
+      ?       payment?: true,
+      ?       tracking?: true
+            }
+          }
+        }
+      })
+
+Unknown field `store` for include statement on model `Order`. Available options are marked with ?.
+    at Nn (D:\delivery_app_backend\food_delivery_backend\node_modules\@prisma\client\runtime\library.js:29:1363)
+    at ei.handleRequestError (D:\delivery_app_backend\food_delivery_backend\node_modules\@prisma\client\runtime\library.js:121:6911)
+    at ei.handleAndLogRequestError (D:\delivery_app_backend\food_delivery_backend\node_modules\@prisma\client\runtime\library.js:121:6593)
+    at ei.request (D:\delivery_app_backend\food_delivery_backend\node_modules\@prisma\client\runtime\library.js:121:6300)
+    at async a (D:\delivery_app_backend\food_delivery_backend\node_modules\@prisma\client\runtime\library.js:130:9551)
+    at async Object.getDashboard (D:\delivery_app_backend\food_delivery_backend\src\modules\delivery\service.js:102:26)
+    at async getDashboard (D:\delivery_app_backend\food_delivery_backend\src\modules\delivery\controller.js:10:18)
+2026-08-03T05:21:33.154Z [INFO]: [jobs] Starting background jobs...
+2026-08-03T05:21:33.156Z [INFO]: [otpCleanup] Scheduled to run every 10 minutes
+2026-08-03T06:33:12.074Z [ERROR]: PrismaClientKnownRequestError: 
+Invalid `prisma.oTP.deleteMany()` invocation in
+D:\delivery_app_backend\food_delivery_backend\src\jobs\otpCleanup.js:8:37
+
+  5 
+  6 async function cleanupExpiredOtps() {
+  7   try {
+→ 8     const result = await prisma.oTP.deleteMany(
+Raw query failed. Code: `unknown`. Message: `Kind: Server selection timeout: No available servers. Topology: { Type: ReplicaSetNoPrimary, Set Name: atlas-46y9s1-shard-0, Max Set Version: 91, Max Election ID: 7fffffff0000000000000092, Servers: [ { Address: ac-2hk9eij-shard-00-01.crhhpww.mongodb.net:27017, Type: Unknown, Error: Kind: I/O error: No such host is known. (os error 11001), labels: {}, source: None }, { Address: ac-2hk9eij-shard-00-00.crhhpww.mongodb.net:27017, Type: Unknown, Error: Kind: I/O error: No such host is known. (os error 11001), labels: {}, source: None }, { Address: ac-2hk9eij-shard-00-02.crhhpww.mongodb.net:27017, Type: Unknown, Error: Kind: I/O error: No such host is known. (os error 11001), labels: {}, source: None } ] }, labels: {"TransientTransactionError"}, source: None`
+    at ei.handleRequestError (D:\delivery_app_backend\food_delivery_backend\node_modules\@prisma\client\runtime\library.js:121:7268)
+    at ei.handleAndLogRequestError (D:\delivery_app_backend\food_delivery_backend\node_modules\@prisma\client\runtime\library.js:121:6593)
+    at ei.request (D:\delivery_app_backend\food_delivery_backend\node_modules\@prisma\client\runtime\library.js:121:6300)
+    at async a (D:\delivery_app_backend\food_delivery_backend\node_modules\@prisma\client\runtime\library.js:130:9551)
+    at async Timeout.cleanupExpiredOtps [as _onTimeout] (D:\delivery_app_backend\food_delivery_backend\src\jobs\otpCleanup.js:8:20)

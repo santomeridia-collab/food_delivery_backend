@@ -1,17 +1,41 @@
-const success = (res, message = "Success", data = {}, statusCode = 200) => {
-    return res.status(statusCode).json({
-      success: true,
-      message,
-      data
-    });
+'use strict';
+
+/**
+ * Standard success response
+ */
+const success = (res, message, data = null, statusCode = 200) => {
+  const response = {
+    success: true,
+    message,
   };
-  
-  const error = (res, message = "Something went wrong", statusCode = 500, details = null) => {
-    return res.status(statusCode).json({
-      success: false,
+
+  if (data !== null) {
+    response.data = data;
+  }
+
+  return res.status(statusCode).json(response);
+};
+
+/**
+ * Standard error response
+ */
+const error = (res, message, statusCode = 400, code = 'BAD_REQUEST', details = null) => {
+  const response = {
+    success: false,
+    error: {
+      code,
       message,
-      details
-    });
+    },
   };
-  
-  module.exports = { success, error };
+
+  if (details) {
+    response.error.details = details;
+  }
+
+  return res.status(statusCode).json(response);
+};
+
+module.exports = {
+  success,
+  error,
+};

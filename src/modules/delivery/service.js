@@ -1,12 +1,12 @@
 'use strict';
 
 const prisma = require('../../config/db');
-const AppError = require('../../common/utils/AppError');
+const AppError = require('../../common/utils/apperror');
 
-//REUSING THE STATUS CONSTANTS WHICH IS IN constants/orderStatus.js
-const ORDER_STATUS = require("../../common/constants/orderStatus");
+// Status constants
+const ORDER_STATUS = require('../../common/constants/orderStatus');
 
-// Socket helper functions — avoids raw io.to(...).emit(...) calls in service layer
+// Socket helpers
 const { emitDeliveryLocation } = require('../../sockets/deliveryHandlers');
 const { emitOrderStatusUpdate } = require('../../sockets/orderHandlers');
 
@@ -16,30 +16,46 @@ const DELIVERY_FEE = 5.00;
 // ─── Date helpers ─────────────────────────────────────────────────────────────
 
 function startOfToday() {
-  const d = new Date(); d.setHours(0, 0, 0, 0); return d;
+  const d = new Date(); 
+  d.setHours(0, 0, 0, 0); 
+  return d;
 }
+
 function startOfWeek() {
-  const d = new Date(); d.setHours(0, 0, 0, 0);
-  d.setDate(d.getDate() - d.getDay()); return d;
+  const d = new Date(); 
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() - d.getDay()); 
+  return d;
 }
+
 function startOfMonth() {
-  const d = new Date(); d.setDate(1); d.setHours(0, 0, 0, 0); return d;
+  const d = new Date(); 
+  d.setDate(1); 
+  d.setHours(0, 0, 0, 0); 
+  return d;
 }
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 
 /**
  * Full dashboard summary for a delivery agent.
- * Returns: total deliveries, earnings (total/week/month/today),
- * online hours (total/week/month), active order, and recent history.
  */
 async function getDashboard(agentId) {
+  if (!agentId) {
+    throw new AppError(400, 'VALIDATION_ERROR', 'Agent ID is required');
+  }
+
   const now = new Date();
 
   // All completed trackings for this agent
   const allCompleted = await prisma.deliveryTracking.findMany({
-    where: { agentId, order: { status: ORDER_STATUS.DELIVERED } },
-    include: { order: { select: { totalAmount: true, createdAt: true } } },
+    where: { 
+      agentId, 
+      order: { status: ORDER_STATUS.DELIVERED } 
+    },
+    include: { 
+      order: { select: { totalAmount: true, createdAt: true } } 
+    },
   });
 
   // Earnings aggregation
@@ -61,35 +77,59 @@ async function getDashboard(agentId) {
   const deliveriesThisMonth = allCompleted.filter(t => t.completedAt && t.completedAt >= startOfMonth()).length;
 
   // Online hours from AgentSession
-  const sessions = await prisma.agentSession.findMany({ where: { agentId } });
+  const sessions = await prisma.agentSession.findMany({ 
+    where: { agentId } 
+  });
+  
   const totalOnlineMinutes = sessions.reduce((s, sess) => s + (sess.durationMinutes || 0), 0);
   const weekSessions = sessions.filter(s => s.goOnlineAt >= startOfWeek());
   const monthSessions = sessions.filter(s => s.goOnlineAt >= startOfMonth());
   const weekOnlineMinutes = weekSessions.reduce((s, sess) => s + (sess.durationMinutes || 0), 0);
   const monthOnlineMinutes = monthSessions.reduce((s, sess) => s + (sess.durationMinutes || 0), 0);
 
-  // todayOnlineMinutes (onlineHours.today)
-  const todaySessions = sessions.filter(
-    s => s.goOnlineAt >= startOfToday()
-  );
-
+  // Today online minutes
+  const todaySessions = sessions.filter(s => s.goOnlineAt >= startOfToday());
   const todayOnlineMinutes = todaySessions.reduce(
     (sum, session) => sum + (session.durationMinutes || 0), 0
   );
 
-  // Check if currently online (open session)
+  // Check if currently online
   const openSession = await prisma.agentSession.findFirst({
     where: { agentId, goOfflineAt: null },
   });
 
-  // Active delivery
+  // Active delivery - FIXED: Removed 'store' field
   const activeTracking = await prisma.deliveryTracking.findFirst({
-    where: { agentId, order: { status: ORDER_STATUS.OUT_FOR_DELIVERY } },
+    where: { 
+      agentId, 
+      order: { status: ORDER_STATUS.OUT_FOR_DELIVERY } 
+    },
     include: {
       order: {
         include: {
-          restaurant: { select: { id: true, name: true, address: true } },
-          items: { include: { menuItem: { select: { name: true, price: true } } } },
+          restaurant: { 
+            select: { 
+              id: true, 
+              name: true, 
+              address: true 
+            } 
+          },
+          items: { 
+            include: { 
+              menuItem: { 
+                select: { 
+                  name: true, 
+                  price: true 
+                } 
+              } 
+            } 
+          },
+          user: { 
+            select: { 
+              name: true, 
+              phone: true 
+            } 
+          },
         },
       },
     },
@@ -98,7 +138,11 @@ async function getDashboard(agentId) {
   return {
     isOnline: !!openSession,
     totalDeliveries,
-    deliveries: { today: deliveriesToday, thisWeek: deliveriesThisWeek, thisMonth: deliveriesThisMonth },
+    deliveries: { 
+      today: deliveriesToday, 
+      thisWeek: deliveriesThisWeek, 
+      thisMonth: deliveriesThisMonth 
+    },
     earnings: {
       total: +earningsTotal.toFixed(2),
       today: +earningsToday.toFixed(2),
@@ -122,128 +166,289 @@ async function getDashboard(agentId) {
 
 async function goOnline(agentId) {
   if (!agentId) {
-    throw new AppError(400, 'BAD_REQUEST', 'Agent ID is required');
+    throw new AppError(400, 'VALIDATION_ERROR', 'Agent ID is required');
   }
-  const open = await prisma.agentSession.findFirst({ where: { agentId, goOfflineAt: null } });
-  if (open) return { message: 'Already online', session: open };
-  const session = await prisma.agentSession.create({ data: { agentId, goOnlineAt:null } });
+
+  const open = await prisma.agentSession.findFirst({ 
+    where: { agentId, goOfflineAt: null } 
+  });
+  
+  if (open) {
+    return { message: 'Already online', session: open };
+  }
+
+  const session = await prisma.agentSession.create({ 
+    data: { 
+      agentId, 
+      goOnlineAt: new Date() 
+    } 
+  });
+  
   return { message: 'You are now online', session };
 }
 
 async function goOffline(agentId) {
   if (!agentId) {
-    throw new AppError(400, 'BAD_REQUEST', 'Agent ID is required');
+    throw new AppError(400, 'VALIDATION_ERROR', 'Agent ID is required');
   }
-  const open = await prisma.agentSession.findFirst({ where: { agentId, goOfflineAt: null } });
-  if (!open) return { message: 'Already offline' };
+
+  const open = await prisma.agentSession.findFirst({ 
+    where: { agentId, goOfflineAt: null } 
+  });
+  
+  if (!open) {
+    return { message: 'Already offline' };
+  }
 
   const now = new Date();
   const durationMinutes = Math.round((now - open.goOnlineAt) / 60000);
+  
   const session = await prisma.agentSession.update({
     where: { id: open.id },
-    data: { goOfflineAt: now, durationMinutes },
+    data: { 
+      goOfflineAt: now, 
+      durationMinutes 
+    },
   });
+  
   return { message: 'You are now offline', session };
 }
 
 // ─── Available / Active / History ────────────────────────────────────────────
+
 async function getAvailableOrders({ page = 1, limit = 20 } = {}) {
   const skip = (page - 1) * limit;
+  
   const [orders, total] = await Promise.all([
     prisma.order.findMany({
-      where: { status: ORDER_STATUS.CONFIRMED, tracking: null },
-      skip, take: limit,
+      where: { 
+        status: ORDER_STATUS.CONFIRMED, 
+        tracking: null 
+      },
+      skip, 
+      take: limit,
       orderBy: { createdAt: 'desc' },
       include: {
-        restaurant: { select: { id: true, name: true, address: true } },
-        store: { select: { id: true, name: true, address: true } },
-        user: { select: { name: true } },
-        items: true,
+        restaurant: { 
+          select: { 
+            id: true, 
+            name: true, 
+            address: true 
+          } 
+        },
+        user: { 
+          select: { 
+            name: true, 
+            phone: true 
+          } 
+        },
+        items: {
+          include: { 
+            menuItem: { 
+              select: { 
+                name: true, 
+                price: true 
+              } 
+            } 
+          }
+        },
       },
     }),
-    prisma.order.count({ where: { status: ORDER_STATUS.CONFIRMED, tracking: null } }),
+    prisma.order.count({ 
+      where: { status: ORDER_STATUS.CONFIRMED, tracking: null } 
+    }),
   ]);
 
   const enriched = orders.map((o) => ({
     ...o,
     customerName: o.user?.name || 'Customer',
-    pickupName: o.restaurant?.name || o.store?.name,
-    pickupAddress: o.restaurant?.address || o.store?.address,
-    itemCount: o.items.length,
+    customerPhone: o.user?.phone || null,
+    pickupName: o.restaurant?.name || 'Pickup Location',
+    pickupAddress: o.restaurant?.address || null,
+    itemCount: o.items?.length || 0,
     deliveryFee: DELIVERY_FEE,
   }));
 
-  return { orders: enriched, total, page, limit };
+  return { 
+    orders: enriched, 
+    total, 
+    page, 
+    limit,
+    totalPages: Math.ceil(total / limit)
+  };
 }
 
 async function getActiveDelivery(agentId) {
+  if (!agentId) {
+    throw new AppError(400, 'VALIDATION_ERROR', 'Agent ID is required');
+  }
+
   const tracking = await prisma.deliveryTracking.findFirst({
-    where: { agentId, order: { status: ORDER_STATUS.OUT_FOR_DELIVERY } },
+    where: { 
+      agentId, 
+      order: { status: ORDER_STATUS.OUT_FOR_DELIVERY } 
+    },
     include: {
       order: {
         include: {
-          restaurant: { select: { id: true, name: true, address: true } },
-          store: { select: { id: true, name: true, address: true } },
-          user: { select: { name: true } },
-          items: { include: { menuItem: { select: { name: true, price: true } } } },
+          restaurant: { 
+            select: { 
+              id: true, 
+              name: true, 
+              address: true 
+            } 
+          },
+          items: { 
+            include: { 
+              menuItem: { 
+                select: { 
+                  name: true, 
+                  price: true 
+                } 
+              } 
+            } 
+          },
+          user: { 
+            select: { 
+              name: true, 
+              phone: true 
+            } 
+          },
         },
       },
     },
   });
+
   if (!tracking) return null;
 
   return {
     ...tracking,
     customerName: tracking.order.user?.name || 'Customer',
+    customerPhone: tracking.order.user?.phone || null,
     customerAddress: tracking.order.deliveryAddress,
-    restaurantAddress:
-      tracking.order.restaurant?.address || tracking.order.store?.address,
-    pickupName:
-      tracking.order.restaurant?.name || tracking.order.store?.name,
+    restaurantAddress: tracking.order.restaurant?.address || null,
+    pickupName: tracking.order.restaurant?.name || 'Pickup Location',
+    estimatedDeliveryTime: tracking.order.estimatedDeliveryTime || null,
   };
 }
 
 async function getDeliveryHistory(agentId, { page = 1, limit = 20 } = {}) {
+  if (!agentId) {
+    throw new AppError(400, 'VALIDATION_ERROR', 'Agent ID is required');
+  }
+
   const skip = (page - 1) * limit;
+  
   const [trackings, total] = await Promise.all([
     prisma.deliveryTracking.findMany({
-      where: { agentId, order: { status: ORDER_STATUS.DELIVERED } },
-      skip, take: limit,
+      where: { 
+        agentId, 
+        order: { status: ORDER_STATUS.DELIVERED } 
+      },
+      skip, 
+      take: limit,
       orderBy: { completedAt: 'desc' },
-      include: { order: { include: { restaurant: { select: { id: true, name: true } }, store: { select: { id: true, name: true } } } } },
+      include: { 
+        order: { 
+          include: { 
+            restaurant: { 
+              select: { 
+                id: true, 
+                name: true,
+                address: true
+              } 
+            },
+            user: { 
+              select: { 
+                name: true, 
+                phone: true 
+              } 
+            }
+          } 
+        } 
+      },
     }),
-    prisma.deliveryTracking.count({ where: { agentId, order: { status: ORDER_STATUS.DELIVERED } } }),
+    prisma.deliveryTracking.count({ 
+      where: { agentId, order: { status: ORDER_STATUS.DELIVERED } } 
+    }),
   ]);
-  return { deliveries: trackings, total, page, limit };
+
+  return { 
+    deliveries: trackings, 
+    total, 
+    page, 
+    limit,
+    totalPages: Math.ceil(total / limit)
+  };
 }
 
 // ─── Accept / Location / Complete ────────────────────────────────────────────
 
 async function acceptOrder(orderId, agentId) {
+  if (!orderId) throw new AppError(400, 'VALIDATION_ERROR', 'Order ID is required');
+  if (!agentId) throw new AppError(400, 'VALIDATION_ERROR', 'Agent ID is required');
+
   const order = await prisma.order.findUnique({
     where: { id: orderId },
     include: { tracking: true },
   });
 
-  if (!order) throw new AppError(404, 'NOT_FOUND', 'Order not found');
-  if (order.status !== ORDER_STATUS.CONFIRMED) throw new AppError(400, 'INVALID_STATUS', `Order cannot be accepted in status: ${order.status}`);
-  if (order.tracking) throw new AppError(409, 'CONFLICT', 'Order has already been assigned to a delivery agent');
+  if (!order) {
+    throw new AppError(404, 'NOT_FOUND', 'Order not found');
+  }
+
+  if (order.status !== ORDER_STATUS.CONFIRMED) {
+    throw new AppError(400, 'INVALID_STATUS', `Order cannot be accepted in status: ${order.status}`);
+  }
+
+  if (order.tracking) {
+    throw new AppError(409, 'CONFLICT', 'Order has already been assigned to a delivery agent');
+  }
+
+  // Check if agent already has an active delivery
+  const activeDelivery = await prisma.deliveryTracking.findFirst({
+    where: { 
+      agentId, 
+      order: { status: ORDER_STATUS.OUT_FOR_DELIVERY } 
+    }
+  });
+
+  if (activeDelivery) {
+    throw new AppError(409, 'CONFLICT', 'You already have an active delivery. Complete it first.');
+  }
 
   const [updatedOrder] = await prisma.$transaction([
-    prisma.order.update({ where: { id: orderId }, data: { status: ORDER_STATUS.OUT_FOR_DELIVERY } }),
-    prisma.deliveryTracking.create({ data: { orderId, agentId, riderName: agentId } }),
+    prisma.order.update({ 
+      where: { id: orderId }, 
+      data: { 
+        status: ORDER_STATUS.OUT_FOR_DELIVERY,
+        acceptedAt: new Date()
+      } 
+    }),
+    prisma.deliveryTracking.create({ 
+      data: { 
+        orderId, 
+        agentId, 
+        riderName: String(agentId),
+        startedAt: new Date()
+      } 
+    }),
   ]);
 
   return updatedOrder;
 }
 
 async function updateLocation(orderId, agentId, lat, lng, io) {
-  //  Validate coordinates before any DB work
+  if (!orderId) throw new AppError(400, 'VALIDATION_ERROR', 'Order ID is required');
+  if (!agentId) throw new AppError(400, 'VALIDATION_ERROR', 'Agent ID is required');
+
+  // Validate coordinates
   if (typeof lat !== 'number' || lat < -90 || lat > 90) {
-    throw new AppError(400, 'INVALID_COORDINATES', 'lat must be a number between -90 and 90');
+    throw new AppError(400, 'INVALID_COORDINATES', 'Latitude must be a number between -90 and 90');
   }
+  
   if (typeof lng !== 'number' || lng < -180 || lng > 180) {
-    throw new AppError(400, 'INVALID_COORDINATES', 'lng must be a number between -180 and 180');
+    throw new AppError(400, 'INVALID_COORDINATES', 'Longitude must be a number between -180 and 180');
   }
 
   const tracking = await prisma.deliveryTracking.findUnique({
@@ -251,21 +456,26 @@ async function updateLocation(orderId, agentId, lat, lng, io) {
     include: { order: true },
   });
 
-  if (!tracking) throw new AppError(404, 'NOT_FOUND', 'Delivery tracking record not found for this order');
+  if (!tracking) {
+    throw new AppError(404, 'NOT_FOUND', 'Delivery tracking record not found for this order');
+  }
+
   if (tracking.agentId !== agentId && tracking.riderName !== String(agentId)) {
     throw new AppError(403, 'FORBIDDEN', 'You are not the assigned agent for this order');
   }
 
   const updated = await prisma.deliveryTracking.update({
     where: { orderId },
-    data: { currentLat: lat, currentLng: lng },
+    data: { 
+      currentLat: lat, 
+      currentLng: lng,
+      updatedAt: new Date()
+    },
   });
 
-  if (io) {
-    //  Include updatedAt so the frontend can detect stale updates
-    // Use the helper function instead of raw io.to().emit()
-    const customerId = tracking.order.userId;
-    emitDeliveryLocation(io, customerId, {
+  // Emit location update via socket
+  if (io && tracking.order.userId) {
+    emitDeliveryLocation(io, tracking.order.userId, {
       order_id: orderId,
       lat,
       lng,
@@ -277,33 +487,51 @@ async function updateLocation(orderId, agentId, lat, lng, io) {
 }
 
 async function completeOrder(orderId, agentId, io) {
+  if (!orderId) throw new AppError(400, 'VALIDATION_ERROR', 'Order ID is required');
+  if (!agentId) throw new AppError(400, 'VALIDATION_ERROR', 'Agent ID is required');
+
   const tracking = await prisma.deliveryTracking.findUnique({
     where: { orderId },
     include: { order: true },
   });
 
-  if (!tracking) throw new AppError(404, 'NOT_FOUND', 'Delivery tracking record not found for this order');
+  if (!tracking) {
+    throw new AppError(404, 'NOT_FOUND', 'Delivery tracking record not found for this order');
+  }
+
   if (tracking.agentId !== agentId && tracking.riderName !== String(agentId)) {
     throw new AppError(403, 'FORBIDDEN', 'You are not the assigned agent for this order');
   }
+
   if (tracking.order.status !== ORDER_STATUS.OUT_FOR_DELIVERY) {
     throw new AppError(400, 'INVALID_STATUS', `Order cannot be completed in status: ${tracking.order.status}`);
   }
 
   const now = new Date();
+  
   const [updatedOrder] = await prisma.$transaction([
-    prisma.order.update({ where: { id: orderId }, data: { status: ORDER_STATUS.DELIVERED } }),
+    prisma.order.update({ 
+      where: { id: orderId }, 
+      data: { 
+        status: ORDER_STATUS.DELIVERED,
+        deliveredAt: now
+      } 
+    }),
     prisma.deliveryTracking.update({
       where: { orderId },
-      data: { earnings: DELIVERY_FEE, completedAt: now },
+      data: { 
+        earnings: DELIVERY_FEE, 
+        completedAt: now 
+      },
     }),
   ]);
 
-  if (io) {
-    // Use helper function instead of raw io.to().emit()
+  // Emit status update via socket
+  if (io && tracking.order.userId) {
     emitOrderStatusUpdate(io, tracking.order.userId, {
       order_id: orderId,
       status: ORDER_STATUS.DELIVERED,
+      completedAt: now,
     });
   }
 
