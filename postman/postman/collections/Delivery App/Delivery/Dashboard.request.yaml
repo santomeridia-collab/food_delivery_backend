@@ -1,6 +1,9 @@
 $kind: http-request
+name: Dashboard
 url: "{{base_url}}/api/delivery/dashboard"
 method: GET
 headers:
-  Authorization: Bearer {{supabase_service_role_api_key_1aa1}}
+  Authorization: BearereyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjZhNzFjODU2MGE1N2EzY2VmMDRkMTM4YSIsInBob25lIjoiKzkxOTg3NjU0MzIwMyIsImVtYWlsIjoiZGVsaXZlcnlhZ2VudEBnbWFpbC5jb20iLCJyb2xlIjoiZGVsaXZlcnkiLCJpc192ZXJpZmllZCI6dHJ1ZSwidG9rZW5JZCI6IjJhODJlZjA2LTA4NmMtNGEwNC05MGFiLTY1OTk2OGYwMjAwMCIsImlhdCI6MTc4NTg1MTA4NCwiZXhwIjoxNzg1ODUxOTg0fQ.YB_TgH9Qa7r_BBeTpVyl5qPk7jgZ2MNZPeljnNGsRKc
+auth:
+  type: bearer
 order: 12000

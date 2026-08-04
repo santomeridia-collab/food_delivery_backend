@@ -1,4 +1,5 @@
 $kind: http-request
+name: Register Delivery Agent
 url: http://localhost:3001/api/auth/register
 method: POST
 body:
@@ -8,6 +9,8 @@ body:
     \  \"name\": \"Delivery Guy\",\r
 
     \  \"phone\": \"+919876543203\",\r
+
+    \  \"email\": \"deliveryagent@gmail.com\",\r
 
     \  \"password\": \"Password123!\",\r
 

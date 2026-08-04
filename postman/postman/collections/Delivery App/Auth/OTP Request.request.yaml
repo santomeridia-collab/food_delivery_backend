@@ -1,11 +1,12 @@
 $kind: http-request
+name: OTP Request
 url: "{{base_url}}/api/auth/login/otp/request"
 method: POST
 body:
   type: json
   content: "{\r
 
-    \  \"phone\": \"+919876543204\",\r
+    \  \"phone\": \"+919876543303\",\r
 
     \  \"role\" : \"customer\"\r
 
