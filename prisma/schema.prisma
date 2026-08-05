@@ -106,19 +106,21 @@ model MenuItem {
 }
 
 model Order {
-  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
   orderNumber     String?
-  userId          String   @db.ObjectId
-  restaurantId    String?  @db.ObjectId
-  storeId         String?  @db.ObjectId
+  userId          String    @db.ObjectId
+  restaurantId    String?   @db.ObjectId
+  storeId         String?   @db.ObjectId
   status          String
   totalAmount     Float
   deliveryAddress String?
   deliveryLat     Float?
   deliveryLng     Float?
-  isDelayed       Boolean  @default(false)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  isDelayed       Boolean   @default(false)
+  acceptedAt      DateTime?
+  deliveredAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   user          User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   restaurant    Restaurant?       @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
@@ -169,6 +171,7 @@ model DeliveryTracking {
   deliveryFee      Float     @default(0)
   distanceKm       Float?
   estimatedMinutes Int?
+  startedAt        DateTime?
   completedAt      DateTime?
   updatedAt        DateTime  @updatedAt
 

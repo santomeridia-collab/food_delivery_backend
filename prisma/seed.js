@@ -737,7 +737,7 @@ async function main() {
       orderNumber: 'ORD-FOOD-001',
       userId: customer.id,
       restaurantId: r1.id,
-      status: 'delivered',
+      status: 'DELIVERED',
       totalAmount: 467.0, // 2x m1 (189*2) + 1x m4 (89) + delivery fee (39) - discount / tax = 467.0
       deliveryAddress: 'Flat 402, Sunshine Apartments, Park Street, Mumbai - 400001',
       deliveryLat: 19.0760,
@@ -801,7 +801,7 @@ async function main() {
       orderNumber: 'ORD-FOOD-002',
       userId: customer.id,
       restaurantId: r2.id,
-      status: 'accepted',
+      status: 'OUT_FOR_DELIVERY',
       totalAmount: 847.0, // m7 (399) + m8 (449) + delivery fee (49) - taxes etc. = 847.0
       deliveryAddress: 'Flat 402, Sunshine Apartments, Park Street, Mumbai - 400001',
       deliveryLat: 19.0760,
@@ -864,7 +864,7 @@ async function main() {
       orderNumber: 'ORD-GROC-001',
       userId: customer.id,
       storeId: s1.id,
-      status: 'delivered',
+      status: 'DELIVERED',
       totalAmount: 134.0, // 2x p2 (32*2) + 1x p3 (45) + delivery fee (25) = 134.0
       deliveryAddress: 'Flat 402, Sunshine Apartments, Park Street, Mumbai - 400001',
       deliveryLat: 19.0760,
@@ -933,3 +933,4 @@ main()
     await prisma.$disconnect();
     process.exit(1);
   });
+
