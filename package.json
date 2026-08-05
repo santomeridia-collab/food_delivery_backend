@@ -9,7 +9,8 @@
     "test": "jest",
     "prisma:generate": "npx prisma generate",
     "prisma:push": "npx prisma db push",
-    "prisma:seed": "npx prisma db seed"
+    "prisma:seed": "npx prisma db seed",
+    "prisma:seed:v2": "node prisma/seed_v2.js"
   },
   "keywords": [],
   "author": "",
